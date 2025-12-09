@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>Checkout – YopRetail Demo</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="page-wrapper">
+    <header class="header">
+      <div class="logo">
+        <span class="logo-mark">Y</span>
+        <span class="logo-text">YopRetail Demo</span>
+      </div>
+    </header>
+
+    <main class="checkout-container">
+      <!-- Columna izquierda: datos del comprador -->
+      <section class="card card-left">
+        <h1 class="card-title">Datos del comprador</h1>
+        <p class="card-subtitle">
+          Revisá que tu información esté correcta antes de confirmar el pedido.
+        </p>
+
+        <div class="field-group">
+          <label class="field-label">Nombre</label>
+          <div class="field-value" id="buyer-name">–</div>
+        </div>
+
+        <div class="field-group">
+          <label class="field-label">Email</label>
+          <div class="field-value" id="buyer-email">–</div>
+        </div>
+
+        <div class="field-group">
+          <label class="field-label">ID de cliente</label>
+          <div class="field-value field-value-muted" id="buyer-id">–</div>
+        </div>
+
+        <div class="info-box">
+          <h2>Cómo sigue</h2>
+          <ul>
+            <li>Confirmás el pedido desde esta pantalla.</li>
+            <li>Recibís un correo con el detalle de la compra.</li>
+            <li>Un agente de YopLabs puede contactarte si es una demo comercial.</li>
+          </ul>
+        </div>
+      </section>
+
+      <!-- Columna derecha: resumen de compra -->
+      <section class="card card-right">
+        <h2 class="card-title">Resumen de compra</h2>
+        <p class="card-subtitle">
+          Este es el total de tu carrito armado con el agente.
+        </p>
+
+        <div class="total-box">
+          <span class="total-label">Total a pagar</span>
+          <span class="total-amount" id="order-amount">$0,00</span>
+        </div>
+
+        <div class="summary-line">
+          <span>Productos</span>
+          <span id="order-items-hint">Armados por el agente</span>
+        </div>
+        <div class="summary-line">
+          <span>Envío</span>
+          <span>Se coordina luego de la demo</span>
+        </div>
+
+        <button class="btn-primary" id="btn-confirm">
+          Confirmar pedido
+        </button>
+
+        <p class="small-note" id="confirmation-message" hidden>
+          ✅ ¡Listo! Este es un checkout de demostración. En un escenario real
+          acá se completaría el proceso de pago.
+        </p>
+
+        <p class="disclaimer">
+          Esta es una <strong>demo técnica</strong> de YopLabs Agent Factory.<br />
+          Los datos mostrados no representan una compra real.
+        </p>
+      </section>
+    </main>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>

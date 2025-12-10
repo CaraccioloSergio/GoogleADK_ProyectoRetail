@@ -24,7 +24,7 @@
   let items = [];
   if (itemsEncoded) {
     try {
-      const decoded = atob(itemsEncoded.replace(/-/g, '+').replace(/_/g, '/'));
+      const decoded = atob(itemsEncoded.replace(/-/g, "+").replace(/_/g, "/"));
       items = JSON.parse(decoded);
     } catch (e) {
       console.error("Error decoding items:", e);

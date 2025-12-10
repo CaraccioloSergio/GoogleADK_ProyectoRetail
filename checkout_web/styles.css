@@ -1,5 +1,5 @@
 :root {
-  --yop-red: #E63946;
+  --yop-red: #e63946;
   --yop-red-dark: #c42d3a;
   --yop-red-light: #ff6b75;
   --bg-page: #ffffff;
@@ -14,13 +14,16 @@
   --shadow-card: 0 2px 12px rgba(0, 0, 0, 0.06);
 }
 
-*, *::before, *::after {
+*,
+*::before,
+*::after {
   box-sizing: border-box;
 }
 
 body {
   margin: 0;
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text",
+    "Segoe UI", sans-serif;
   background: linear-gradient(135deg, #ffffff 0%, #fff5f6 50%, #ffffff 100%);
   color: var(--text-main);
 }
@@ -245,7 +248,11 @@ body {
   margin: 12px 0 16px;
   padding: 18px 18px 20px;
   border-radius: 14px;
-  background: linear-gradient(135deg, rgba(230, 57, 70, 0.08), rgba(255, 255, 255, 0.5));
+  background: linear-gradient(
+    135deg,
+    rgba(230, 57, 70, 0.08),
+    rgba(255, 255, 255, 0.5)
+  );
   border: 2px solid var(--yop-red);
   display: flex;
   flex-direction: column;
@@ -358,13 +365,17 @@ body {
   margin: 0;
 }
 
+/* Responsive */
+
 @media (max-width: 880px) {
   .checkout-container {
     grid-template-columns: 1fr;
   }
+
   .card-right {
     order: -1;
   }
+
   .hero-title {
     font-size: 32px;
   }
@@ -374,18 +385,23 @@ body {
   .page-wrapper {
     padding: 16px 10px 30px;
   }
+
   .card {
     padding: 22px 20px;
   }
+
   .total-amount {
     font-size: 24px;
   }
+
   .hero-title {
     font-size: 26px;
   }
+
   .logo-img {
     height: 45px;
   }
+
   .hero-subtitle {
     font-size: 15px;
   }

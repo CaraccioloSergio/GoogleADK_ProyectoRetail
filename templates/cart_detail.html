@@ -1,0 +1,39 @@
+{% extends "admin_base.html" %}
+{% block title %}Carrito #{{ cart.id }} - Admin{% endblock %}
+{% block content %}
+<h2>Carrito #{{ cart.id }}</h2>
+
+<section class="form-section">
+  <h3>Resumen del carrito</h3>
+  <p><strong>Usuario:</strong> {{ cart.user_name }} ({{ cart.user_email }})</p>
+  <p><strong>Estado:</strong> {{ cart.status }}</p>
+  <p><strong>Items:</strong> {{ cart.items_count }}</p>
+  <p><strong>Total:</strong> ${{ "%.2f"|format(cart.total) }}</p>
+  <p><strong>Creado:</strong> {{ cart.created_at }} &nbsp; | &nbsp; <strong>Actualizado:</strong> {{ cart.updated_at }}</p>
+</section>
+
+<h3>Productos en el carrito</h3>
+
+<table class="table">
+  <thead>
+    <tr>
+      <th>SKU</th>
+      <th>Producto</th>
+      <th>Cantidad</th>
+      <th>P. unitario</th>
+      <th>Total línea</th>
+    </tr>
+  </thead>
+  <tbody>
+  {% for item in items %}
+    <tr>
+      <td>{{ item.sku }}</td>
+      <td>{{ item.product_name }}</td>
+      <td>{{ item.quantity }}</td>
+      <td>${{ "%.2f"|format(item.unit_price) }}</td>
+      <td>${{ "%.2f"|format(item.line_total) }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

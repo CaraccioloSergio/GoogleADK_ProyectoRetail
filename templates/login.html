@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Login Admin</title>
+  <link rel="stylesheet" href="/static/admin.css">
+</head>
+<body class="login-body">
+  <div class="login-card">
+    <h1>YopRetail Admin</h1>
+    <form method="post" action="/admin/login">
+      <label>Usuario</label>
+      <input type="text" name="username" required>
+      <label>Contraseña</label>
+      <input type="password" name="password" required>
+      {% if error %}
+      <p class="error">{{ error }}</p>
+      {% endif %}
+      <button type="submit">Entrar</button>
+    </form>
+  </div>
+</body>
+</html>

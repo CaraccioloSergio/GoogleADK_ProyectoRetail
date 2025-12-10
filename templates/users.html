@@ -1,0 +1,45 @@
+{% extends "admin_base.html" %}
+{% block title %}Usuarios - Admin{% endblock %}
+{% block content %}
+<h2>Usuarios</h2>
+
+<section class="form-section">
+  <h3>Nuevo usuario</h3>
+  <form method="post" action="/admin/users" class="form-grid">
+    <input type="text" name="name" placeholder="Nombre" required>
+    <input type="email" name="email" placeholder="Email" required>
+    <input type="text" name="phone" placeholder="Teléfono">
+    <input type="text" name="segment" placeholder="Segmento" value="nuevo">
+    <button type="submit">Guardar</button>
+  </form>
+
+  <h3>Importar usuarios desde CSV</h3>
+  <form method="post" action="/admin/users/import" enctype="multipart/form-data" class="upload-form">
+    <input type="file" name="file" accept=".csv" required>
+    <button type="submit">Subir CSV</button>
+    <p class="help-text">
+      Campos esperados: <code>name,email,phone,segment</code> (o <code>nombre,email,telefono,segmento</code>).
+    </p>
+  </form>
+</section>
+
+<table class="table">
+  <thead>
+    <tr>
+      <th>ID</th><th>Nombre</th><th>Email</th><th>Teléfono</th><th>Segmento</th><th>Creado</th>
+    </tr>
+  </thead>
+  <tbody>
+  {% for u in users %}
+    <tr>
+      <td>{{ u.id }}</td>
+      <td>{{ u.name }}</td>
+      <td>{{ u.email }}</td>
+      <td>{{ u.phone }}</td>
+      <td>{{ u.segment }}</td>
+      <td>{{ u.created_at }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

@@ -1,0 +1,34 @@
+{% extends "admin_base.html" %}
+{% block title %}Órdenes - Admin{% endblock %}
+{% block content %}
+<h2>Órdenes</h2>
+
+<table class="table">
+  <thead>
+    <tr>
+      <th>ID</th>
+      <th>Usuario</th>
+      <th>Email</th>
+      <th>Carrito</th>
+      <th>Total</th>
+      <th>Estado pago</th>
+      <th>Creada</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for o in orders %}
+    <tr>
+      <td><a href="/admin/orders/{{ o.id }}">#{{ o.id }}</a></td>
+      <td>{{ o.user_name }}</td>
+      <td>{{ o.user_email }}</td>
+      <td>
+        <a href="/admin/carts/{{ o.cart_id }}">#{{ o.cart_id }}</a>
+      </td>
+      <td>${{ "%.2f"|format(o.total) }}</td>
+      <td>{{ o.payment_status }}</td>
+      <td>{{ o.created_at }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

@@ -1,0 +1,61 @@
+{% extends "admin_base.html" %}
+{% block title %}Productos - Admin{% endblock %}
+{% block content %}
+<h2>Productos</h2>
+
+<section class="form-section">
+  <h3>Nuevo producto</h3>
+  <form method="post" action="/admin/products" class="form-grid">
+    <input type="text" name="sku" placeholder="SKU" required>
+    <input type="text" name="name" placeholder="Nombre" required>
+    <input type="number" step="0.01" name="price" placeholder="Precio" required>
+    <input type="text" name="category" placeholder="Categoría">
+    <input type="number" name="stock" placeholder="Stock" value="0">
+
+    <label class="checkbox-inline">
+      <input type="checkbox" name="is_offer"> En oferta
+    </label>
+
+    <textarea name="description" placeholder="Descripción" rows="2"></textarea>
+
+    <button type="submit">Guardar</button>
+  </form>
+
+  <h3 style="margin-top: 24px;">Importar productos desde CSV</h3>
+
+  <form method="post" action="/admin/products/import" enctype="multipart/form-data" class="upload-form">
+    <input type="file" name="file" accept=".csv" required>
+    <button type="submit">Subir CSV</button>
+
+    <p class="help-text">
+      Campos esperados:
+      <code>sku,name,price,category,description,stock,is_offer</code><br>
+      También acepta variantes en español: <code>nombre,precio,categoria,descripcion,oferta</code>.
+    </p>
+  </form>
+</section>
+
+<table class="table">
+  <thead>
+    <tr>
+      <th>ID</th><th>SKU</th><th>Nombre</th><th>Categoría</th>
+      <th>Precio</th><th>Oferta</th><th>Stock</th><th>Última actualización</th>
+    </tr>
+  </thead>
+  <tbody>
+  {% for p in products %}
+    <tr>
+      <td>{{ p.id }}</td>
+      <td>{{ p.sku }}</td>
+      <td>{{ p.name }}</td>
+      <td>{{ p.category }}</td>
+      <td>${{ "%.2f"|format(p.price) }}</td>
+      <td>{% if p.is_offer %}Sí{% else %}No{% endif %}</td>
+      <td>{{ p.stock }}</td>
+      <td>{{ p.updated_at }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+
+{% endblock %}

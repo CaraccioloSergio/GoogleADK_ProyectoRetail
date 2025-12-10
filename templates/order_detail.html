@@ -1,0 +1,46 @@
+{% extends "admin_base.html" %}
+{% block title %}Detalle de orden #{{ order.id }}{% endblock %}
+
+{% block content %}
+<h2>Orden #{{ order.id }}</h2>
+
+<section class="detail-header">
+  <div class="detail-card">
+    <h3>Datos de la orden</h3>
+    <p><strong>Usuario:</strong> {{ order.user_name }} ({{ order.user_email }})</p>
+    <p>
+      <strong>Carrito:</strong>
+      <a href="/admin/carts/{{ order.cart_id }}">#{{ order.cart_id }}</a>
+    </p>
+    <p><strong>Total:</strong> ${{ "%.2f"|format(order.total) }}</p>
+    <p><strong>Estado de pago:</strong> {{ order.payment_status }}</p>
+    <p><strong>Creada:</strong> {{ order.created_at }}</p>
+  </div>
+</section>
+
+<section class="table-section">
+  <h3>Productos de la orden</h3>
+  <table class="table">
+    <thead>
+      <tr>
+        <th>SKU</th>
+        <th>Producto</th>
+        <th>Cant.</th>
+        <th>Precio unit.</th>
+        <th>Subtotal</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for item in items %}
+      <tr>
+        <td>{{ item.sku }}</td>
+        <td>{{ item.product_name }}</td>
+        <td>{{ item.quantity }}</td>
+        <td>${{ "%.2f"|format(item.unit_price) }}</td>
+        <td>${{ "%.2f"|format(item.line_total) }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endblock %}

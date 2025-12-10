@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>{% block title %}Admin Retail{% endblock %}</title>
+  <link rel="stylesheet" href="/static/admin.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-left">
+      <span class="logo">YopRetail Admin</span>
+    </div>
+    <div class="topbar-right">
+      <a href="/admin">Dashboard</a>
+      <a href="/admin/users">Usuarios</a>
+      <a href="/admin/products">Productos</a>
+      <a href="/admin/carts">Carritos</a>
+      <a href="/admin/orders">Órdenes</a>
+      <a href="/admin/logout">Salir</a>
+    </div>
+  </header>
+
+  <main class="content">
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>

@@ -1,10 +1,10 @@
-# agent_tools_backoffice.py
 """
 Tools que usa el agente de retail para hablar con el backoffice
 (FastAPI + retail.db).
 
 Incluye:
-- identify_or_create_user
+- search_users (NUEVA - busca usuarios y devuelve candidatos)
+- create_user (NUEVA - crea usuario directamente)
 - search_products
 - add_product_to_cart
 - get_cart_summary
@@ -17,13 +17,8 @@ from typing import List, Dict, Any, Optional
 import requests
 
 # Base URL del backoffice (FastAPI)
-# En local: http://localhost:8000
 BACKOFFICE_BASE_URL = os.getenv("BACKOFFICE_BASE_URL", "http://localhost:8000")
-
-# (Opcional) URL base del checkout web, para fallback si el back no envía link
-CHECKOUT_BASE_URL = os.getenv(
-    "CHECKOUT_BASE_URL", "http://localhost:8001/index.html"
-)
+CHECKOUT_BASE_URL = os.getenv("CHECKOUT_BASE_URL", "http://localhost:8001/index.html")
 
 
 def _api_get(path: str, params: Optional[Dict[str, Any]] = None) -> Any:
@@ -50,139 +45,172 @@ def _api_post(path: str, json_data: Dict[str, Any]) -> Any:
 
 
 # =====================================================
-# TOOL 1: identify_or_create_user
+# TOOL 1: search_users (NUEVA - simplificada)
 # =====================================================
 
-def identify_or_create_user(
-    name: Optional[str],
-    email: Optional[str],
-    phone: Optional[str],
+def search_users(
+    name: Optional[str] = None,
+    email: Optional[str] = None,
+    phone: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
-    Identifica o crea un usuario usando el backoffice, aceptando cualquiera
-    de estos datos: nombre o email o teléfono.
+    Busca usuarios en la base de datos usando cualquier combinación de:
+    - name (búsqueda parcial)
+    - email (búsqueda exacta, vía /users/search?email=...)
+    - phone (búsqueda exacta)
 
-    Flujo:
-    1) Busca en /users/search con lo que tenga (email/phone/name).
-    2) Si encuentra 1 usuario -> status 'found'.
-    3) Si encuentra varios -> status 'ambiguous' con candidatos.
-    4) Si no encuentra ninguno:
-       - Si hay email -> crea usuario nuevo (segment='nuevo'), status 'created'.
-       - Si NO hay email -> status 'error' pidiendo el mail.
+    Devuelve:
+    - status: "found" | "multiple" | "not_found" | "error"
+    - users: lista de candidatos
     """
 
-    # Si no tiene NADA, no podemos hacer magia
     if not any([name, email, phone]):
         return {
             "status": "error",
-            "error_message": (
-                "Necesito al menos uno de estos datos para encontrarte: "
-                "nombre, email o teléfono."
-            ),
+            "error_message": "Necesito al menos un dato para buscar (nombre, email o teléfono)",
+            "users": [],
         }
 
-    # 1) Buscar con lo que tengamos
     try:
         params: Dict[str, Any] = {}
 
-        if email is not None and email != "":
+        # Si viene solo email, igual usamos /users/search, pero la lógica
+        # de interpretación es la misma: lista de usuarios.
+        if email:
             params["email"] = email
-
-        if phone is not None and phone != "":
+        if phone:
             params["phone"] = phone
-
-        if name is not None and name != "":
+        if name:
             params["name"] = name
 
-        # Limpieza final
-        params = {k: v for k, v in params.items() if v not in (None, "", "null")}
+        params = {k: v for k, v in params.items() if v and v != "null"}
 
         users = _api_get("/users/search", params=params) or []
-    except Exception as e:
-        return {
-            "status": "error",
-            "error_message": f"No pude consultar la base de clientes. Detalle: {e}",
-        }
 
-    # 2) Si encontró usuarios
-    if len(users) == 1:
-        u = users[0]
-        return {
-            "status": "found",
-            "user": {
+        candidates = [
+            {
                 "id": u["id"],
                 "name": u["name"],
                 "email": u["email"],
-                "phone": u.get("phone"),
+                "phone": u.get("phone", ""),
                 "segment": u.get("segment", "recurrente"),
-            },
-        }
+            }
+            for u in users
+        ]
 
-    if len(users) > 1:
-        # Devolvemos candidatos para que el LLM los use en el mensaje
-        candidates = []
-        for u in users:
-            candidates.append(
-                {
-                    "id": u["id"],
-                    "name": u["name"],
-                    "email": u["email"],
-                    "phone": u.get("phone"),
-                }
-            )
+        if len(candidates) == 0:
+            return {
+                "status": "not_found",
+                "message": "No encontré usuarios con esos datos. Podés crear uno nuevo.",
+                "users": [],
+            }
+
+        if len(candidates) == 1:
+            return {
+                "status": "found",
+                "message": f"Encontré 1 usuario: {candidates[0]['name']} ({candidates[0]['email']})",
+                "users": candidates,
+            }
+
         return {
-            "status": "ambiguous",
-            "candidates": candidates,
-            "error_message": (
-                "Encontré más de un posible usuario con esos datos. "
-                "Pedile al usuario que confirme cuál es."
-            ),
+            "status": "multiple",
+            "message": f"Encontré {len(candidates)} usuarios. Preguntale cuál corresponde.",
+            "users": candidates,
         }
 
-    # 3) No encontró ninguno -> crear
-    if not email:
-        # No podemos crear usuario sin email porque el schema lo exige
-        return {
-            "status": "error",
-            "error_message": (
-                "No encontré un usuario con esos datos y para crearte necesito "
-                "también un email. ¿Me lo pasás?"
-            ),
-        }
-
-    safe_name = name or "Cliente"
-    safe_phone = phone or ""
-
-    try:
-        new_user = _api_post(
-            "/users",
-            {
-                "name": safe_name,
-                "email": email,
-                "phone": safe_phone,
-                "segment": "nuevo",
-            },
-        )
     except Exception as e:
         return {
             "status": "error",
-            "error_message": f"No pude crearte como nuevo cliente. Detalle: {e}",
+            "error_message": f"Error al buscar usuarios: {e}",
+            "users": [],
         }
-
-    return {
-        "status": "created",
-        "user": {
-            "id": new_user["id"],
-            "name": new_user["name"],
-            "email": new_user["email"],
-            "phone": new_user.get("phone"),
-            "segment": new_user.get("segment", "nuevo"),
-        },
-    }
 
 
 # =====================================================
-# TOOL 2: search_products
+# TOOL 2: create_user (NUEVA - simplificada)
+# =====================================================
+
+def create_user(
+    name: str,
+    email: str,
+    phone: Optional[str] = None,
+) -> Dict[str, Any]:
+    """
+    Crea un nuevo usuario en la base de datos.
+
+    Comportamiento robusto / tolerante al modelo:
+    - Primero busca por email con /users/search.
+    - Si ya existe, devuelve status="exists" con ese usuario.
+    - Si no existe, lo crea y devuelve status="created".
+    """
+
+    if not name or not email:
+        return {
+            "status": "error",
+            "error_message": "Para crear un usuario necesito nombre y email",
+        }
+
+    try:
+        # 1) Ver si ya existe el email usando /users/search
+        try:
+            existing_list = _api_get("/users/search", params={"email": email}) or []
+        except Exception:
+            existing_list = []
+
+        if existing_list:
+            # Tomamos el primero, debería ser único por email
+            existing = existing_list[0]
+            return {
+                "status": "exists",
+                "message": f"El email {email} ya estaba registrado. Uso ese usuario.",
+                "user": {
+                    "id": existing["id"],
+                    "name": existing["name"],
+                    "email": existing["email"],
+                    "phone": existing.get("phone"),
+                    "segment": existing.get("segment", "recurrente"),
+                },
+            }
+
+        # 2) Crear nuevo usuario
+        new_user = _api_post(
+            "/users",
+            {
+                "name": name,
+                "email": email,
+                "phone": phone or "",
+                "segment": "nuevo",
+            },
+        )
+
+        return {
+            "status": "created",
+            "message": f"Usuario creado exitosamente: {new_user['name']} ({new_user['email']})",
+            "user": {
+                "id": new_user["id"],
+                "name": new_user["name"],
+                "email": new_user["email"],
+                "phone": new_user.get("phone"),
+                "segment": new_user.get("segment", "nuevo"),
+            },
+        }
+
+    except requests.exceptions.HTTPError as e:
+        return {
+            "status": "error",
+            "error_message": f"Error al crear usuario: {e}",
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "error_message": f"Error inesperado al crear usuario: {e}",
+        }
+
+
+
+
+# =====================================================
+# TOOL 3: search_products (sin cambios)
 # =====================================================
 
 def search_products(
@@ -264,7 +292,7 @@ def search_products(
 
 
 # =====================================================
-# TOOL 3: add_product_to_cart
+# TOOL 4: add_product_to_cart (mejorado con validación)
 # =====================================================
 
 def add_product_to_cart(
@@ -287,6 +315,20 @@ def add_product_to_cart(
             "error_message": "La cantidad debe ser mayor a 0.",
         }
 
+    # Validar que el usuario existe
+    try:
+        user = _api_get(f"/users/{user_id}")
+        if not user:
+            return {
+                "status": "error",
+                "error_message": f"El usuario con ID {user_id} no existe. Necesitás buscar o crear el usuario primero."
+            }
+    except Exception as e:
+        return {
+            "status": "error",
+            "error_message": f"No pude verificar el usuario: {e}"
+        }
+
     try:
         cart = _api_post(
             "/carts/add_item",
@@ -296,23 +338,31 @@ def add_product_to_cart(
                 "quantity": quantity,
             },
         )
+    except requests.exceptions.HTTPError as e:
+        if e.response.status_code == 404:
+            return {
+                "status": "error",
+                "error_message": "El producto no existe o no está disponible."
+            }
+        return {
+            "status": "error",
+            "error_message": f"No pude agregar el producto al carrito: {e}"
+        }
     except Exception as e:
         return {
             "status": "error",
-            "error_message": (
-                "No pude agregar el producto al carrito en el backoffice. "
-                f"Detalle: {e}"
-            ),
+            "error_message": f"Error inesperado: {e}"
         }
 
     return {
         "status": "success",
+        "message": f"Agregado al carrito: {quantity}x producto ID {product_id}",
         "cart": cart,
     }
 
 
 # =====================================================
-# TOOL 4: get_cart_summary
+# TOOL 5: get_cart_summary (sin cambios)
 # =====================================================
 
 def get_cart_summary(user_id: int) -> Dict[str, Any]:
@@ -358,7 +408,7 @@ def get_cart_summary(user_id: int) -> Dict[str, Any]:
 
 
 # =====================================================
-# TOOL 5: checkout_cart
+# TOOL 6: checkout_cart (sin cambios)
 # =====================================================
 
 def checkout_cart(user_id: int, email: str) -> Dict[str, Any]:

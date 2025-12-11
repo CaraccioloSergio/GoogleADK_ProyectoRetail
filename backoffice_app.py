@@ -26,7 +26,6 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, EmailStr, Field
 from starlette.middleware.sessions import SessionMiddleware
-from urllib.parse import quote_plus
 
 # -------------------------
 # Paths base
@@ -137,8 +136,6 @@ class CheckoutRequest(BaseModel):
 def get_current_admin(request: Request):
     if request.session.get("is_admin") is True:
         return True
-
-    # Si no está logueado, lo mando al login con un query param de error
     raise HTTPException(
         status_code=status.HTTP_307_TEMPORARY_REDIRECT,
         headers={"Location": "/admin/login?error=1"},
@@ -154,7 +151,6 @@ def admin_login_page(request: Request):
     error = None
     if error_param == "1":
         error = "Tenés que iniciar sesión para acceder al panel de administración."
-
     return templates.TemplateResponse(
         "login.html", {"request": request, "error": error}
     )
@@ -168,7 +164,6 @@ def admin_login(
     if username == ADMIN_USER and password == ADMIN_PASSWORD:
         request.session["is_admin"] = True
         return RedirectResponse(url="/admin", status_code=status.HTTP_303_SEE_OTHER)
-
     return templates.TemplateResponse(
         "login.html",
         {"request": request, "error": "Usuario o contraseña incorrectos."},
@@ -188,7 +183,6 @@ def admin_dashboard(request: Request, _: bool = Depends(get_current_admin)):
         users_count = conn.execute("SELECT COUNT(*) FROM users").fetchone()[0]
         products_count = conn.execute("SELECT COUNT(*) FROM products").fetchone()[0]
         orders_count = conn.execute("SELECT COUNT(*) FROM orders").fetchone()[0]
-
     return templates.TemplateResponse(
         "dashboard.html",
         {
@@ -210,7 +204,6 @@ def admin_users(request: Request, _: bool = Depends(get_current_admin)):
             "SELECT id, name, email, phone, segment, created_at "
             "FROM users ORDER BY created_at DESC"
         ).fetchall()
-
     return templates.TemplateResponse(
         "users.html",
         {"request": request, "users": rows},
@@ -237,9 +230,7 @@ def admin_create_user(
             )
             conn.commit()
         except sqlite3.IntegrityError:
-            # Email duplicado: por ahora lo ignoramos en el admin simple
             pass
-
     return RedirectResponse(
         url="/admin/users", status_code=status.HTTP_303_SEE_OTHER
     )
@@ -253,7 +244,6 @@ async def admin_import_users(
 ):
     content = (await file.read()).decode("utf-8-sig")
     reader = csv.DictReader(io.StringIO(content))
-
     with get_connection() as conn:
         for row in reader:
             name = row.get("name") or row.get("nombre")
@@ -271,10 +261,8 @@ async def admin_import_users(
                     (name, email, phone or None, segment),
                 )
             except sqlite3.IntegrityError:
-                # si el email ya existe, lo salteamos
                 continue
         conn.commit()
-
     return RedirectResponse(
         url="/admin/users", status_code=status.HTTP_303_SEE_OTHER
     )
@@ -293,7 +281,6 @@ def admin_products(request: Request, _: bool = Depends(get_current_admin)):
             ORDER BY updated_at DESC
             """
         ).fetchall()
-
     return templates.TemplateResponse(
         "products.html",
         {"request": request, "products": rows},
@@ -331,9 +318,7 @@ def admin_create_product(
             )
             conn.commit()
         except sqlite3.IntegrityError:
-            # SKU duplicado
             pass
-
     return RedirectResponse(
         url="/admin/products", status_code=status.HTTP_303_SEE_OTHER
     )
@@ -347,7 +332,6 @@ async def admin_import_products(
 ):
     content = (await file.read()).decode("utf-8-sig")
     reader = csv.DictReader(io.StringIO(content))
-
     with get_connection() as conn:
         for row in reader:
             sku = row.get("sku")
@@ -357,20 +341,16 @@ async def admin_import_products(
             description = row.get("description") or row.get("descripcion")
             stock = row.get("stock") or 0
             is_offer_val = row.get("is_offer") or row.get("oferta") or "0"
-
             if not sku or not name or not price:
                 continue
-
             try:
                 price = float(price)
             except ValueError:
                 continue
-
             try:
                 stock = int(stock)
             except ValueError:
                 stock = 0
-
             is_offer = str(is_offer_val).strip().lower() in (
                 "1",
                 "true",
@@ -379,7 +359,6 @@ async def admin_import_products(
                 "yes",
                 "y",
             )
-
             try:
                 conn.execute(
                 """
@@ -397,11 +376,8 @@ async def admin_import_products(
                 ),
             )
             except sqlite3.IntegrityError:
-                # SKU ya existe → por ahora lo salteamos
                 continue
-
         conn.commit()
-
     return RedirectResponse(
         url="/admin/products", status_code=status.HTTP_303_SEE_OTHER
     )
@@ -429,7 +405,6 @@ def admin_orders(request: Request, _: bool = Depends(get_current_admin)):
             ORDER BY o.created_at DESC
             """
         ).fetchall()
-
     return templates.TemplateResponse(
         "orders.html",
         {"request": request, "orders": rows},
@@ -459,10 +434,8 @@ def admin_order_detail(
             """,
             (order_id,),
         ).fetchone()
-
         if not order:
             raise HTTPException(status_code=404, detail="Orden no encontrada")
-
         items = conn.execute(
             """
             SELECT
@@ -478,7 +451,6 @@ def admin_order_detail(
             """,
             (order["cart_id"],),
         ).fetchall()
-
     return templates.TemplateResponse(
         "order_detail.html",
         {"request": request, "order": order, "items": items},
@@ -507,7 +479,6 @@ def admin_carts(request: Request, _: bool = Depends(get_current_admin)):
             ORDER BY c.created_at DESC
             """
         ).fetchall()
-
     return templates.TemplateResponse(
         "carts.html",
         {"request": request, "carts": rows},
@@ -537,10 +508,8 @@ def admin_cart_detail(cart_id: int, request: Request, _: bool = Depends(get_curr
             """,
             (cart_id,),
         ).fetchone()
-
         if not cart:
             raise HTTPException(status_code=404, detail="Carrito no encontrado")
-
         items = conn.execute(
             """
             SELECT
@@ -556,7 +525,6 @@ def admin_cart_detail(cart_id: int, request: Request, _: bool = Depends(get_curr
             """,
             (cart_id,),
         ).fetchall()
-
     return templates.TemplateResponse(
         "cart_detail.html",
         {"request": request, "cart": cart, "items": items},
@@ -566,77 +534,7 @@ def admin_cart_detail(cart_id: int, request: Request, _: bool = Depends(get_curr
 # -------------------------
 # Helpers para carritos
 # -------------------------
-def _get_open_cart_id(conn: sqlite3.Connection, user_id: int) -> Optional[int]:
-    row = conn.execute(
-        """
-        SELECT id
-        FROM carts
-        WHERE user_id = ? AND status = 'open'
-        ORDER BY created_at DESC
-        LIMIT 1
-        """,
-        (user_id,),
-    ).fetchone()
-    return row["id"] if row else None
-
-
-def _get_or_create_open_cart_id(conn: sqlite3.Connection, user_id: int) -> int:
-    cart_id = _get_open_cart_id(conn, user_id)
-    if cart_id is not None:
-        return cart_id
-
-    cur = conn.execute(
-        "INSERT INTO carts (user_id, status) VALUES (?, 'open')",
-        (user_id,),
-    )
-    return cur.lastrowid
-
-
-def _build_cart_summary(conn: sqlite3.Connection, cart_id: int) -> dict:
-    rows = conn.execute(
-        """
-        SELECT
-            p.id            AS product_id,
-            p.name          AS product_name,
-            ci.quantity     AS quantity,
-            ci.unit_price   AS unit_price,
-            ci.quantity * ci.unit_price AS line_total
-        FROM cart_items ci
-        JOIN products p ON p.id = ci.product_id
-        WHERE ci.cart_id = ?
-        ORDER BY p.name
-        """,
-        (cart_id,),
-    ).fetchall()
-
-    items = []
-    total = 0.0
-    for r in rows:
-        d = dict(r)
-        total += float(d["line_total"])
-        items.append(
-            {
-                "product_id": d["product_id"],
-                "product_name": d["product_name"],
-                "quantity": d["quantity"],
-                "unit_price": float(d["unit_price"]),
-                "line_total": float(d["line_total"]),
-            }
-        )
-
-    return {
-        "cart_id": cart_id,
-        "items": items,
-        "total": total,
-    }
-
 def build_cart_summary(conn: sqlite3.Connection, cart_id: int) -> Dict[str, Any]:
-    """
-    Devuelve un dict con:
-      - cart_id
-      - items: [{product_id, name, quantity, unit_price, line_total}, ...]
-      - total: float
-    """
     rows = conn.execute(
         """
         SELECT
@@ -652,10 +550,8 @@ def build_cart_summary(conn: sqlite3.Connection, cart_id: int) -> Dict[str, Any]
         """,
         (cart_id,),
     ).fetchall()
-
     items = []
     total = 0.0
-
     for r in rows:
         item = {
             "product_id": r["product_id"],
@@ -666,13 +562,11 @@ def build_cart_summary(conn: sqlite3.Connection, cart_id: int) -> Dict[str, Any]
         }
         items.append(item)
         total += float(r["line_total"])
-
     return {
         "cart_id": cart_id,
         "items": items,
         "total": total,
     }
-
 
 
 # -------------------------
@@ -693,12 +587,10 @@ def create_user(user: UserCreate):
             user_id = cur.lastrowid
         except sqlite3.IntegrityError:
             raise HTTPException(status_code=400, detail="Email ya registrado")
-
         row = conn.execute(
             "SELECT id, name, email, phone, segment, created_at FROM users WHERE id = ?",
             (user_id,),
         ).fetchone()
-
     return User(**dict(row))
 
 
@@ -711,6 +603,53 @@ def list_users():
         ).fetchall()
     return [User(**dict(r)) for r in rows]
 
+@app.get("/users/by_email", response_model=User)
+def get_user_by_email(email: str):
+    with get_connection() as conn:
+        row = conn.execute(
+            """
+            SELECT id, name, email, phone, segment, created_at
+            FROM users
+            WHERE email = ?
+            """,
+            (email,),
+        ).fetchone()
+    if not row:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    return User(**dict(row))
+
+@app.get("/users/search", response_model=List[User])
+def search_users(
+    email: Optional[str] = Query(None),
+    phone: Optional[str] = Query(None),
+    name: Optional[str] = Query(None),
+):
+    """
+    Busca usuarios por uno o más criterios usando lógica OR.
+    Devuelve TODOS los usuarios que coincidan con al menos uno de los criterios.
+    """
+    conditions = []
+    params = []
+    if email:
+        conditions.append("email = ?")
+        params.append(email)
+    if phone:
+        conditions.append("phone = ?")
+        params.append(phone)
+    if name:
+        conditions.append("LOWER(name) LIKE ?")
+        params.append(f"%{name.lower()}%")
+    if not conditions:
+        return []
+    sql = f"""
+        SELECT id, name, email, phone, segment, created_at
+        FROM users
+        WHERE {' OR '.join(conditions)}
+        ORDER BY created_at DESC
+    """
+    with get_connection() as conn:
+        rows = conn.execute(sql, params).fetchall()
+    return [User(**dict(r)) for r in rows]
 
 @app.get("/users/{user_id}", response_model=User)
 def get_user(user_id: int):
@@ -723,105 +662,30 @@ def get_user(user_id: int):
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
     return User(**dict(row))
 
-@app.get("/users/by_email", response_model=User)
-def get_user_by_email(email: str):
-    """
-    Devuelve un usuario buscado por email.
-    Pensado para que el agente pueda hacer identify_or_create:
-    primero busca por email, si no existe lo crea.
-    """
-    with get_connection() as conn:
-        row = conn.execute(
-            """
-            SELECT id, name, email, phone, segment, created_at
-            FROM users
-            WHERE email = ?
-            """,
-            (email,),
-        ).fetchone()
-
-    if not row:
-        raise HTTPException(status_code=404, detail="Usuario no encontrado")
-
-    return User(**dict(row))
-
-@app.get("/users/search", response_model=List[User])
-def search_users(
-    email: Optional[str] = Query(None),
-    phone: Optional[str] = Query(None),
-    name: Optional[str] = Query(None),
-):
-    """
-    Busca usuarios por uno o más criterios:
-    - email (match exacto)
-    - phone (match exacto)
-    - name (búsqueda parcial, LIKE)
-    """
-    sql = """
-        SELECT id, name, email, phone, segment, created_at
-        FROM users
-        WHERE 1=1
-    """
-    params = []
-
-    if email:
-        sql += " AND email = ?"
-        params.append(email)
-
-    if phone:
-        sql += " AND phone = ?"
-        params.append(phone)
-
-    if name:
-        sql += " AND LOWER(name) LIKE ?"
-        params.append(f"%{name.lower()}%")
-
-    with get_connection() as conn:
-        rows = conn.execute(sql, params).fetchall()
-
-    return [User(**dict(r)) for r in rows]
 
 # -------------------------
 # API JSON: CARTS
 # -------------------------
-
 @app.post("/carts/add_item")
 def api_cart_add_item(payload: CartAddItemRequest) -> Dict[str, Any]:
-    """
-    Agrega un ítem al carrito "open" del usuario.
-    Si no existe carrito open, lo crea.
-    Request body:
-      { "user_id": int, "product_id": int, "quantity": int }
-    Response:
-      { "cart_id": int, "items": [...], "total": float }
-    """
     if payload.quantity <= 0:
         raise HTTPException(status_code=400, detail="La cantidad debe ser mayor a 0.")
-
     with get_connection() as conn:
         cur = conn.cursor()
-
-        # 1) Usuario
         user = cur.execute(
             "SELECT id, name, email FROM users WHERE id = ?",
             (payload.user_id,),
         ).fetchone()
         if not user:
             raise HTTPException(status_code=404, detail="Usuario no encontrado")
-
-        # 2) Producto
         product = cur.execute(
             "SELECT id, price, stock FROM products WHERE id = ?",
             (payload.product_id,),
         ).fetchone()
         if not product:
             raise HTTPException(status_code=404, detail="Producto no encontrado")
-
-        # (opcional) chequeo simple de stock
         if product["stock"] is not None and product["stock"] < payload.quantity:
             raise HTTPException(status_code=400, detail="No hay stock suficiente")
-
-        # 3) Carrito open del usuario (o crear uno nuevo)
         cart = cur.execute(
             """
             SELECT id
@@ -832,7 +696,6 @@ def api_cart_add_item(payload: CartAddItemRequest) -> Dict[str, Any]:
             """,
             (payload.user_id,),
         ).fetchone()
-
         if cart:
             cart_id = cart["id"]
         else:
@@ -841,8 +704,6 @@ def api_cart_add_item(payload: CartAddItemRequest) -> Dict[str, Any]:
                 (payload.user_id,),
             )
             cart_id = cur.lastrowid
-
-        # 4) Insertar / actualizar item
         existing_item = cur.execute(
             """
             SELECT id, quantity
@@ -851,7 +712,6 @@ def api_cart_add_item(payload: CartAddItemRequest) -> Dict[str, Any]:
             """,
             (cart_id, payload.product_id),
         ).fetchone()
-
         if existing_item:
             new_qty = existing_item["quantity"] + payload.quantity
             cur.execute(
@@ -870,17 +730,12 @@ def api_cart_add_item(payload: CartAddItemRequest) -> Dict[str, Any]:
                 """,
                 (cart_id, payload.product_id, payload.quantity, product["price"]),
             )
-
-        # 5) Actualizar timestamp del carrito
         cur.execute(
             "UPDATE carts SET updated_at = CURRENT_TIMESTAMP WHERE id = ?",
             (cart_id,),
         )
-
         conn.commit()
-
         summary = build_cart_summary(conn, cart_id)
-
     return {
         "cart_id": summary["cart_id"],
         "user_id": payload.user_id,
@@ -891,10 +746,6 @@ def api_cart_add_item(payload: CartAddItemRequest) -> Dict[str, Any]:
 
 @app.get("/carts/summary")
 def api_cart_summary(user_id: int = Query(...)) -> Dict[str, Any]:
-    """
-    Devuelve el resumen del carrito 'open' de un usuario.
-    Si no tiene carrito, devuelve items vacíos y total 0.
-    """
     with get_connection() as conn:
         cart = conn.execute(
             """
@@ -906,7 +757,6 @@ def api_cart_summary(user_id: int = Query(...)) -> Dict[str, Any]:
             """,
             (user_id,),
         ).fetchone()
-
         if not cart:
             return {
                 "cart_id": None,
@@ -914,9 +764,7 @@ def api_cart_summary(user_id: int = Query(...)) -> Dict[str, Any]:
                 "items": [],
                 "total": 0.0,
             }
-
         summary = build_cart_summary(conn, cart["id"])
-
     return {
         "cart_id": summary["cart_id"],
         "user_id": user_id,
@@ -924,40 +772,20 @@ def api_cart_summary(user_id: int = Query(...)) -> Dict[str, Any]:
         "total": summary["total"],
     }
 
+
 # -------------------------
 # API JSON: CHECKOUT
 # -------------------------
-
 @app.post("/orders/checkout")
 def api_checkout(payload: CheckoutRequest) -> Dict[str, Any]:
-    """
-    Cierra el carrito 'open' del usuario, crea una orden y
-    genera la URL de pago para el checkout_web.
-
-    Request body:
-      { "user_id": int, "email": str }
-
-    Response:
-      {
-        "order_id": int,
-        "cart_id": int,
-        "total": float,
-        "payment_status": "pending",
-        "payment_url": str
-      }
-    """
     with get_connection() as conn:
         cur = conn.cursor()
-
-        # 1) Usuario
         user = cur.execute(
             "SELECT id, name, email FROM users WHERE id = ?",
             (payload.user_id,),
         ).fetchone()
         if not user:
             raise HTTPException(status_code=404, detail="Usuario no encontrado")
-
-        # 2) Carrito open
         cart = cur.execute(
             """
             SELECT id
@@ -968,16 +796,12 @@ def api_checkout(payload: CheckoutRequest) -> Dict[str, Any]:
             """,
             (payload.user_id,),
         ).fetchone()
-
         if not cart:
             raise HTTPException(
                 status_code=400,
                 detail="El usuario no tiene un carrito abierto para checkout.",
             )
-
         cart_id = cart["id"]
-
-        # 3) Items del carrito
         rows = cur.execute(
             """
             SELECT
@@ -992,13 +816,10 @@ def api_checkout(payload: CheckoutRequest) -> Dict[str, Any]:
             """,
             (cart_id,),
         ).fetchall()
-
         if not rows:
             raise HTTPException(status_code=400, detail="El carrito está vacío.")
-
         items: List[Dict[str, Any]] = []
         total = 0.0
-
         for r in rows:
             line = {
                 "product_id": r["product_id"],
@@ -1009,8 +830,6 @@ def api_checkout(payload: CheckoutRequest) -> Dict[str, Any]:
             }
             items.append(line)
             total += float(r["line_total"])
-
-        # 4) Crear la orden
         cur.execute(
             """
             INSERT INTO orders (user_id, cart_id, total, payment_status)
@@ -1019,23 +838,16 @@ def api_checkout(payload: CheckoutRequest) -> Dict[str, Any]:
             (payload.user_id, cart_id, total, "pending"),
         )
         order_id = cur.lastrowid
-
-        # 5) Marcar carrito como 'checked_out'
         cur.execute(
             "UPDATE carts SET status = 'checked_out', updated_at = CURRENT_TIMESTAMP WHERE id = ?",
             (cart_id,),
         )
-
         conn.commit()
-
-        # 6) Generar payment_url para el checkout_web
         user_name = user["name"]
         user_email = user["email"] or payload.email
-
         items_payload = base64.urlsafe_b64encode(
             json.dumps(items).encode("utf-8")
         ).decode("utf-8")
-
         payment_url = (
             f"{CHECKOUT_BASE_URL}"
             f"?user_id={quote_plus(str(user['id']))}"
@@ -1044,7 +856,6 @@ def api_checkout(payload: CheckoutRequest) -> Dict[str, Any]:
             f"&amount={total:.2f}"
             f"&items={items_payload}"
         )
-
     return {
         "order_id": order_id,
         "cart_id": cart_id,
@@ -1080,7 +891,6 @@ def api_create_product(product: ProductCreate):
             product_id = cur.lastrowid
         except sqlite3.IntegrityError:
             raise HTTPException(status_code=400, detail="SKU ya existente")
-
         row = conn.execute(
             """
             SELECT id, sku, name, category, description, price, is_offer, stock, updated_at
@@ -1088,7 +898,6 @@ def api_create_product(product: ProductCreate):
             """,
             (product_id,),
         ).fetchone()
-
     data = dict(row)
     data["is_offer"] = bool(data["is_offer"])
     return Product(**data)
@@ -1130,7 +939,7 @@ def api_get_product(product_id: int):
 
 
 # -------------------------
-# API JSON: ORDERS (solo lectura)
+# API JSON: ORDERS
 # -------------------------
 @app.get("/orders", response_model=List[Order])
 def api_list_orders():
@@ -1144,173 +953,18 @@ def api_list_orders():
         ).fetchall()
     return [Order(**dict(r)) for r in rows]
 
-# -------------------------
-# API JSON: CARTS & CHECKOUT (para el agente)
-# -------------------------
 
-class AddItemRequest(BaseModel):
-    user_id: int
-    product_id: int
-    quantity: int = 1
-
-
-class CheckoutFromAgentRequest(BaseModel):
-    user_id: int
-    email: EmailStr
-
-
-@app.post("/carts/add_item")
-def api_add_item_to_cart(payload: AddItemRequest):
-    if payload.quantity <= 0:
-        raise HTTPException(status_code=400, detail="Cantidad debe ser > 0")
-
+@app.get("/orders/{order_id}", response_model=Order)
+def api_get_order(order_id: int):
     with get_connection() as conn:
-        # Validar producto
-        product = conn.execute(
-            "SELECT id, price FROM products WHERE id = ?",
-            (payload.product_id,),
-        ).fetchone()
-        if not product:
-            raise HTTPException(status_code=404, detail="Producto no encontrado")
-
-        cart_id = _get_or_create_open_cart_id(conn, payload.user_id)
-
-        # Ver si ya hay una línea para ese producto
-        existing = conn.execute(
+        row = conn.execute(
             """
-            SELECT id, quantity
-            FROM cart_items
-            WHERE cart_id = ? AND product_id = ?
+            SELECT id, user_id, cart_id, total, payment_status, created_at
+            FROM orders
+            WHERE id = ?
             """,
-            (cart_id, payload.product_id),
+            (order_id,),
         ).fetchone()
-
-        if existing:
-            new_qty = existing["quantity"] + payload.quantity
-            conn.execute(
-                """
-                UPDATE cart_items
-                SET quantity = ?, unit_price = ?
-                WHERE id = ?
-                """,
-                (new_qty, float(product["price"]), existing["id"]),
-            )
-        else:
-            conn.execute(
-                """
-                INSERT INTO cart_items (cart_id, product_id, quantity, unit_price)
-                VALUES (?, ?, ?, ?)
-                """,
-                (
-                    cart_id,
-                    product["id"],
-                    payload.quantity,
-                    float(product["price"]),
-                ),
-            )
-
-        conn.commit()
-
-        summary = _build_cart_summary(conn, cart_id)
-
-    return {
-        "cart_id": summary["cart_id"],
-        "user_id": payload.user_id,
-        "items": summary["items"],
-        "total": summary["total"],
-    }
-
-
-@app.get("/carts/summary")
-def api_cart_summary(user_id: int):
-    with get_connection() as conn:
-        cart_id = _get_open_cart_id(conn, user_id)
-        if cart_id is None:
-            return {
-                "cart_id": None,
-                "user_id": user_id,
-                "items": [],
-                "total": 0.0,
-            }
-
-        summary = _build_cart_summary(conn, cart_id)
-
-    return {
-        "cart_id": summary["cart_id"],
-        "user_id": user_id,
-        "items": summary["items"],
-        "total": summary["total"],
-    }
-
-
-@app.post("/checkout/from_agent")
-def api_checkout_from_agent(payload: CheckoutFromAgentRequest):
-    with get_connection() as conn:
-        cart_id = _get_open_cart_id(conn, payload.user_id)
-        if cart_id is None:
-            raise HTTPException(status_code=400, detail="No hay carrito abierto")
-
-        summary = _build_cart_summary(conn, cart_id)
-        if not summary["items"]:
-            raise HTTPException(status_code=400, detail="El carrito está vacío")
-
-        total = summary["total"]
-
-        # Crear orden
-        cur = conn.execute(
-            """
-            INSERT INTO orders (user_id, cart_id, total, payment_status)
-            VALUES (?, ?, ?, ?)
-            """,
-            (payload.user_id, cart_id, total, "pending"),
-        )
-        order_id = cur.lastrowid
-
-        # Cambiar estado del carrito
-        conn.execute(
-            "UPDATE carts SET status = 'checked_out' WHERE id = ?",
-            (cart_id,),
-        )
-
-        # Buscar datos del usuario
-        user_row = conn.execute(
-            "SELECT name, email FROM users WHERE id = ?",
-            (payload.user_id,),
-        ).fetchone()
-
-        user_name = user_row["name"] if user_row else "Cliente"
-        email = user_row["email"] or payload.email if user_row else payload.email
-
-        # Preparar items para el checkout (formato que espera tu script del checkout)
-        items_for_payload = [
-            {
-                "product_id": it["product_id"],
-                "name": it["product_name"],
-                "quantity": it["quantity"],
-                "unit_price": it["unit_price"],
-                "line_total": it["line_total"],
-            }
-            for it in summary["items"]
-        ]
-
-        items_encoded = base64.urlsafe_b64encode(
-            json.dumps(items_for_payload).encode("utf-8")
-        ).decode("utf-8")
-
-        payment_url = (
-            f"{CHECKOUT_BASE_URL}"
-            f"?user_id={quote_plus(str(payload.user_id))}"
-            f"&name={quote_plus(user_name)}"
-            f"&email={quote_plus(email)}"
-            f"&amount={total:.2f}"
-            f"&items={items_encoded}"
-        )
-
-        conn.commit()
-
-    return {
-        "order_id": order_id,
-        "user_id": payload.user_id,
-        "total": total,
-        "payment_url": payment_url,
-    }
+    if not row:
+        raise HTTPException(status_code=404, detail="Orden no encontrada")
+    return Order(**dict(row))

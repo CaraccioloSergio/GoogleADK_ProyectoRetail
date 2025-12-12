@@ -198,16 +198,133 @@ def admin_dashboard(request: Request, _: bool = Depends(get_current_admin)):
 # ADMIN HTML: USERS
 # -------------------------
 @app.get("/admin/users", response_class=HTMLResponse)
-def admin_users(request: Request, _: bool = Depends(get_current_admin)):
+def admin_users(
+    request: Request,
+    q_name: Optional[str] = Query(None),
+    q_email: Optional[str] = Query(None),
+    q_phone: Optional[str] = Query(None),
+    q_segment: Optional[str] = Query(None),
+    _: bool = Depends(get_current_admin),
+):
+    conditions = []
+    params = []
+
+    if q_name:
+        conditions.append("LOWER(name) LIKE ?")
+        params.append(f"%{q_name.lower()}%")
+    if q_email:
+        conditions.append("email = ?")
+        params.append(q_email)
+    if q_phone:
+        conditions.append("phone = ?")
+        params.append(q_phone)
+    if q_segment:
+        conditions.append("segment = ?")
+        params.append(q_segment)
+
+    where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+
     with get_connection() as conn:
         rows = conn.execute(
-            "SELECT id, name, email, phone, segment, created_at "
-            "FROM users ORDER BY created_at DESC"
+            f"""
+            SELECT id, name, email, phone, segment, created_at
+            FROM users
+            {where}
+            ORDER BY created_at DESC
+            """,
+            params,
         ).fetchall()
+
     return templates.TemplateResponse(
         "users.html",
-        {"request": request, "users": rows},
+        {
+            "request": request,
+            "users": rows,
+            "q_name": q_name,
+            "q_email": q_email,
+            "q_phone": q_phone,
+            "q_segment": q_segment,
+        },
     )
+
+@app.get("/admin/users/{user_id}/edit", response_class=HTMLResponse)
+def admin_user_edit_page(
+    user_id: int,
+    request: Request,
+    _: bool = Depends(get_current_admin),
+):
+    with get_connection() as conn:
+        user = conn.execute(
+            "SELECT id, name, email, phone, segment, created_at FROM users WHERE id = ?",
+            (user_id,),
+        ).fetchone()
+    if not user:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    return templates.TemplateResponse(
+        "user_edit.html",
+        {"request": request, "user": user},
+    )
+    
+@app.post("/admin/users/{user_id}/edit")
+def admin_user_edit_save(
+    user_id: int,
+    request: Request,
+    name: str = Form(...),
+    email: str = Form(...),
+    phone: str = Form(""),
+    segment: str = Form("nuevo"),
+    _: bool = Depends(get_current_admin),
+):
+    with get_connection() as conn:
+        try:
+            cur = conn.execute(
+                """
+                UPDATE users
+                SET name = ?, email = ?, phone = ?, segment = ?
+                WHERE id = ?
+                """,
+                (name, email, phone or None, segment or None, user_id),
+            )
+            conn.commit()
+        except sqlite3.IntegrityError:
+            # Email duplicado
+            return RedirectResponse(
+                url=f"/admin/users/{user_id}/edit",
+                status_code=status.HTTP_303_SEE_OTHER,
+            )
+
+    if cur.rowcount == 0:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+
+    return RedirectResponse(url="/admin/users", status_code=status.HTTP_303_SEE_OTHER)
+
+@app.post("/admin/users/{user_id}/delete")
+def admin_user_delete(
+    user_id: int,
+    _: bool = Depends(get_current_admin),
+):
+    with get_connection() as conn:
+        cur = conn.cursor()
+
+        user = cur.execute("SELECT id FROM users WHERE id = ?", (user_id,)).fetchone()
+        if not user:
+            raise HTTPException(status_code=404, detail="Usuario no encontrado")
+
+        cart_ids = [r["id"] for r in cur.execute(
+            "SELECT id FROM carts WHERE user_id = ?",
+            (user_id,),
+        ).fetchall()]
+
+        if cart_ids:
+            placeholders = ",".join(["?"] * len(cart_ids))
+            cur.execute(f"DELETE FROM cart_items WHERE cart_id IN ({placeholders})", cart_ids)
+
+        cur.execute("DELETE FROM orders WHERE user_id = ?", (user_id,))
+        cur.execute("DELETE FROM carts WHERE user_id = ?", (user_id,))
+        cur.execute("DELETE FROM users WHERE id = ?", (user_id,))
+        conn.commit()
+
+    return RedirectResponse(url="/admin/users", status_code=status.HTTP_303_SEE_OTHER)
 
 
 @app.post("/admin/users", response_class=HTMLResponse)
@@ -272,20 +389,138 @@ async def admin_import_users(
 # ADMIN HTML: PRODUCTS
 # -------------------------
 @app.get("/admin/products", response_class=HTMLResponse)
-def admin_products(request: Request, _: bool = Depends(get_current_admin)):
+def admin_products(
+    request: Request,
+    q_sku: Optional[str] = Query(None),
+    q_name: Optional[str] = Query(None),
+    q_category: Optional[str] = Query(None),
+    q_offer: Optional[str] = Query(None),  # checkbox -> llega como "on" si está tildado
+    _: bool = Depends(get_current_admin),
+):
+    conditions = []
+    params = []
+
+    if q_sku:
+        conditions.append("sku = ?")
+        params.append(q_sku)
+    if q_name:
+        conditions.append("LOWER(name) LIKE ?")
+        params.append(f"%{q_name.lower()}%")
+    if q_category:
+        conditions.append("LOWER(category) LIKE ?")
+        params.append(f"%{q_category.lower()}%")
+    if q_offer:
+        conditions.append("is_offer = 1")
+
+    where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+
     with get_connection() as conn:
         rows = conn.execute(
-            """
+            f"""
             SELECT id, sku, name, category, description, price, is_offer, stock, updated_at
             FROM products
+            {where}
             ORDER BY updated_at DESC
-            """
+            """,
+            params,
         ).fetchall()
+
     return templates.TemplateResponse(
         "products.html",
-        {"request": request, "products": rows},
+        {
+            "request": request,
+            "products": rows,
+            "q_sku": q_sku,
+            "q_name": q_name,
+            "q_category": q_category,
+            "q_offer": bool(q_offer),
+        },
+    )
+    
+@app.get("/admin/products/{product_id}/edit", response_class=HTMLResponse)
+def admin_product_edit_page(
+    product_id: int,
+    request: Request,
+    _: bool = Depends(get_current_admin),
+):
+    with get_connection() as conn:
+        product = conn.execute(
+            """
+            SELECT id, sku, name, category, description, price, is_offer, stock, updated_at
+            FROM products WHERE id = ?
+            """,
+            (product_id,),
+        ).fetchone()
+    if not product:
+        raise HTTPException(status_code=404, detail="Producto no encontrado")
+    return templates.TemplateResponse(
+        "product_edit.html",
+        {"request": request, "product": product},
     )
 
+
+@app.post("/admin/products/{product_id}/edit")
+def admin_product_edit_save(
+    product_id: int,
+    sku: str = Form(...),
+    name: str = Form(...),
+    price: float = Form(...),
+    category: str = Form(""),
+    description: str = Form(""),
+    stock: int = Form(0),
+    is_offer: Optional[str] = Form(None),
+    _: bool = Depends(get_current_admin),
+):
+    with get_connection() as conn:
+        try:
+            cur = conn.execute(
+                """
+                UPDATE products
+                SET sku = ?, name = ?, category = ?, description = ?, price = ?, is_offer = ?, stock = ?, updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+                """,
+                (
+                    sku,
+                    name,
+                    category or None,
+                    description or None,
+                    price,
+                    1 if is_offer else 0,
+                    stock,
+                    product_id,
+                ),
+            )
+            conn.commit()
+        except sqlite3.IntegrityError:
+            # SKU duplicado
+            return RedirectResponse(
+                url=f"/admin/products/{product_id}/edit",
+                status_code=status.HTTP_303_SEE_OTHER,
+            )
+
+    if cur.rowcount == 0:
+        raise HTTPException(status_code=404, detail="Producto no encontrado")
+
+    return RedirectResponse(url="/admin/products", status_code=status.HTTP_303_SEE_OTHER)
+
+@app.post("/admin/products/{product_id}/delete")
+def admin_product_delete(
+    product_id: int,
+    _: bool = Depends(get_current_admin),
+):
+    with get_connection() as conn:
+        cur = conn.cursor()
+
+        prod = cur.execute("SELECT id FROM products WHERE id = ?", (product_id,)).fetchone()
+        if not prod:
+            raise HTTPException(status_code=404, detail="Producto no encontrado")
+
+        # Evita problemas de FK
+        cur.execute("DELETE FROM cart_items WHERE product_id = ?", (product_id,))
+        cur.execute("DELETE FROM products WHERE id = ?", (product_id,))
+        conn.commit()
+
+    return RedirectResponse(url="/admin/products", status_code=status.HTTP_303_SEE_OTHER)
 
 @app.post("/admin/products", response_class=HTMLResponse)
 def admin_create_product(
@@ -387,28 +622,96 @@ async def admin_import_products(
 # ADMIN HTML: ORDERS & CARTS
 # -------------------------
 @app.get("/admin/orders", response_class=HTMLResponse)
-def admin_orders(request: Request, _: bool = Depends(get_current_admin)):
+def admin_orders(
+    request: Request,
+    q_user: Optional[str] = Query(None),
+    q_email: Optional[str] = Query(None),
+    q_status: Optional[str] = Query(None),
+    _: bool = Depends(get_current_admin),
+):
+    conditions = []
+    params = []
+
+    if q_user:
+        conditions.append("LOWER(u.name) LIKE ?")
+        params.append(f"%{q_user.lower()}%")
+    if q_email:
+        conditions.append("u.email = ?")
+        params.append(q_email)
+    if q_status:
+        conditions.append("o.payment_status = ?")
+        params.append(q_status)
+
+    where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+
     with get_connection() as conn:
         rows = conn.execute(
-            """
+            f"""
             SELECT
-                o.id,
-                o.user_id,
-                u.name AS user_name,
-                u.email AS user_email,
-                o.cart_id,
-                o.total,
-                o.payment_status,
-                o.created_at
+                o.id, o.user_id, u.name AS user_name, u.email AS user_email,
+                o.cart_id, o.total, o.payment_status, o.created_at
             FROM orders o
             JOIN users u ON u.id = o.user_id
+            {where}
             ORDER BY o.created_at DESC
-            """
+            """,
+            params,
         ).fetchall()
+
     return templates.TemplateResponse(
         "orders.html",
-        {"request": request, "orders": rows},
+        {"request": request, "orders": rows, "q_user": q_user, "q_email": q_email, "q_status": q_status},
     )
+
+@app.get("/admin/orders/{order_id}/edit", response_class=HTMLResponse)
+def admin_order_edit_page(
+    order_id: int,
+    request: Request,
+    _: bool = Depends(get_current_admin),
+):
+    with get_connection() as conn:
+        order = conn.execute(
+            """
+            SELECT
+              o.id, o.user_id, u.name AS user_name, u.email AS user_email,
+              o.cart_id, o.total, o.payment_status, o.created_at
+            FROM orders o
+            JOIN users u ON u.id = o.user_id
+            WHERE o.id = ?
+            """,
+            (order_id,),
+        ).fetchone()
+    if not order:
+        raise HTTPException(status_code=404, detail="Orden no encontrada")
+    return templates.TemplateResponse("order_edit.html", {"request": request, "order": order})
+
+@app.post("/admin/orders/{order_id}/edit")
+def admin_order_edit_save(
+    order_id: int,
+    payment_status: str = Form(...),
+    _: bool = Depends(get_current_admin),
+):
+    with get_connection() as conn:
+        cur = conn.execute(
+            "UPDATE orders SET payment_status = ? WHERE id = ?",
+            (payment_status, order_id),
+        )
+        conn.commit()
+    if cur.rowcount == 0:
+        raise HTTPException(status_code=404, detail="Orden no encontrada")
+    return RedirectResponse(url=f"/admin/orders/{order_id}", status_code=status.HTTP_303_SEE_OTHER)
+
+@app.post("/admin/orders/{order_id}/delete")
+def admin_order_delete(
+    order_id: int,
+    _: bool = Depends(get_current_admin),
+):
+    with get_connection() as conn:
+        cur = conn.execute("DELETE FROM orders WHERE id = ?", (order_id,))
+        conn.commit()
+    if cur.rowcount == 0:
+        raise HTTPException(status_code=404, detail="Orden no encontrada")
+    return RedirectResponse(url="/admin/orders", status_code=status.HTTP_303_SEE_OTHER)
 
 @app.get("/admin/orders/{order_id}", response_class=HTMLResponse)
 def admin_order_detail(
@@ -458,31 +761,107 @@ def admin_order_detail(
 
 
 @app.get("/admin/carts", response_class=HTMLResponse)
-def admin_carts(request: Request, _: bool = Depends(get_current_admin)):
+def admin_carts(
+    request: Request,
+    q_user: Optional[str] = Query(None),
+    q_email: Optional[str] = Query(None),
+    q_status: Optional[str] = Query(None),
+    _: bool = Depends(get_current_admin),
+):
+    conditions = []
+    params = []
+
+    if q_user:
+        conditions.append("LOWER(u.name) LIKE ?")
+        params.append(f"%{q_user.lower()}%")
+    if q_email:
+        conditions.append("u.email = ?")
+        params.append(q_email)
+    if q_status:
+        conditions.append("c.status = ?")
+        params.append(q_status)
+
+    where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+
     with get_connection() as conn:
         rows = conn.execute(
-            """
+            f"""
             SELECT
-                c.id,
-                c.user_id,
-                u.name AS user_name,
-                u.email AS user_email,
-                c.status,
-                c.created_at,
-                c.updated_at,
+                c.id, c.user_id, u.name AS user_name, u.email AS user_email,
+                c.status, c.created_at, c.updated_at,
                 COALESCE(SUM(ci.quantity * ci.unit_price), 0) AS total,
                 COALESCE(SUM(ci.quantity), 0) AS items_count
             FROM carts c
             JOIN users u ON u.id = c.user_id
             LEFT JOIN cart_items ci ON ci.cart_id = c.id
+            {where}
             GROUP BY c.id
             ORDER BY c.created_at DESC
-            """
+            """,
+            params,
         ).fetchall()
+
     return templates.TemplateResponse(
         "carts.html",
-        {"request": request, "carts": rows},
+        {"request": request, "carts": rows, "q_user": q_user, "q_email": q_email, "q_status": q_status},
     )
+    
+@app.get("/admin/carts/{cart_id}/edit", response_class=HTMLResponse)
+def admin_cart_edit_page(
+    cart_id: int,
+    request: Request,
+    _: bool = Depends(get_current_admin),
+):
+    with get_connection() as conn:
+        cart = conn.execute(
+            """
+            SELECT
+                c.id, c.user_id, u.name AS user_name, u.email AS user_email,
+                c.status, c.created_at, c.updated_at,
+                COALESCE(SUM(ci.quantity * ci.unit_price), 0) AS total,
+                COALESCE(SUM(ci.quantity), 0) AS items_count
+            FROM carts c
+            JOIN users u ON u.id = c.user_id
+            LEFT JOIN cart_items ci ON ci.cart_id = c.id
+            WHERE c.id = ?
+            GROUP BY c.id
+            """,
+            (cart_id,),
+        ).fetchone()
+    if not cart:
+        raise HTTPException(status_code=404, detail="Carrito no encontrado")
+    return templates.TemplateResponse("cart_edit.html", {"request": request, "cart": cart})
+
+@app.post("/admin/carts/{cart_id}/edit")
+def admin_cart_edit_save(
+    cart_id: int,
+    status_val: str = Form(..., alias="status"),
+    _: bool = Depends(get_current_admin),
+):
+    with get_connection() as conn:
+        cur = conn.execute(
+            "UPDATE carts SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+            (status_val, cart_id),
+        )
+        conn.commit()
+    if cur.rowcount == 0:
+        raise HTTPException(status_code=404, detail="Carrito no encontrado")
+    return RedirectResponse(url=f"/admin/carts/{cart_id}", status_code=status.HTTP_303_SEE_OTHER)
+
+@app.post("/admin/carts/{cart_id}/delete")
+def admin_cart_delete(
+    cart_id: int,
+    _: bool = Depends(get_current_admin),
+):
+    with get_connection() as conn:
+        cur = conn.cursor()
+        cart = cur.execute("SELECT id FROM carts WHERE id = ?", (cart_id,)).fetchone()
+        if not cart:
+            raise HTTPException(status_code=404, detail="Carrito no encontrado")
+        cur.execute("DELETE FROM cart_items WHERE cart_id = ?", (cart_id,))
+        cur.execute("DELETE FROM carts WHERE id = ?", (cart_id,))
+        conn.commit()
+    return RedirectResponse(url="/admin/carts", status_code=status.HTTP_303_SEE_OTHER)
 
 
 @app.get("/admin/carts/{cart_id}", response_class=HTMLResponse)

@@ -1,0 +1,21 @@
+{% extends "admin_base.html" %}
+{% block title %}Editar orden #{{ order.id }}{% endblock %}
+{% block content %}
+<h2>Editar orden #{{ order.id }}</h2>
+
+<section class="form-section">
+  <h3>Estado de pago</h3>
+  <p class="help-text">
+    Usuario: <strong>{{ order.user_name }}</strong> ({{ order.user_email }}) — Total: <strong>${{ "%.2f"|format(order.total) }}</strong>
+  </p>
+
+  <form method="post" action="/admin/orders/{{ order.id }}/edit" class="form-grid">
+    <input type="text" name="payment_status" placeholder="payment_status" value="{{ order.payment_status }}" required>
+    <button type="submit">Guardar cambios</button>
+  </form>
+
+  <p class="help-text">
+    <a href="/admin/orders/{{ order.id }}">← Volver al detalle</a>
+  </p>
+</section>
+{% endblock %}

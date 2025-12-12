@@ -4,6 +4,21 @@
 <h2>Productos</h2>
 
 <section class="form-section">
+  <h3>Buscar productos</h3>
+  <form method="get" action="/admin/products" class="form-grid">
+    <input type="text" name="q_sku" placeholder="SKU exacto..." value="{{ q_sku or '' }}">
+    <input type="text" name="q_name" placeholder="Nombre contiene..." value="{{ q_name or '' }}">
+    <input type="text" name="q_category" placeholder="Categoría contiene..." value="{{ q_category or '' }}">
+
+    <label class="checkbox-inline">
+      <input type="checkbox" name="q_offer" {% if q_offer %}checked{% endif %}> Solo ofertas
+    </label>
+
+    <button type="submit">Buscar</button>
+  </form>
+</section>
+
+<section class="form-section">
   <h3>Nuevo producto</h3>
   <form method="post" action="/admin/products" class="form-grid">
     <input type="text" name="sku" placeholder="SKU" required>
@@ -39,7 +54,7 @@
   <thead>
     <tr>
       <th>ID</th><th>SKU</th><th>Nombre</th><th>Categoría</th>
-      <th>Precio</th><th>Oferta</th><th>Stock</th><th>Última actualización</th>
+      <th>Precio</th><th>Oferta</th><th>Stock</th><th>Última actualización</th><th>Acciones</th>
     </tr>
   </thead>
   <tbody>
@@ -53,6 +68,13 @@
       <td>{% if p.is_offer %}Sí{% else %}No{% endif %}</td>
       <td>{{ p.stock }}</td>
       <td>{{ p.updated_at }}</td>
+      <td>
+        <a href="/admin/products/{{ p.id }}/edit">Editar</a>
+        &nbsp;|&nbsp;
+        <form method="post" action="/admin/products/{{ p.id }}/delete" style="display:inline;" onsubmit="return confirm('¿Seguro que querés borrar el producto #{{p.id}} ({{p.sku}})?');">
+          <button type="submit" style="background:transparent;border:none;color:#ff4b6a;cursor:pointer;padding:0;">Borrar</button>
+        </form>
+      </td>
     </tr>
   {% endfor %}
   </tbody>

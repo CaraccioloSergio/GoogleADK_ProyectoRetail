@@ -3,6 +3,16 @@
 {% block content %}
 <h2>Órdenes</h2>
 
+<section class="form-section">
+  <h3>Buscar órdenes</h3>
+  <form method="get" action="/admin/orders" class="form-grid">
+    <input type="text" name="q_user" placeholder="Usuario contiene..." value="{{ q_user or '' }}">
+    <input type="text" name="q_email" placeholder="Email exacto..." value="{{ q_email or '' }}">
+    <input type="text" name="q_status" placeholder="payment_status exacto..." value="{{ q_status or '' }}">
+    <button type="submit">Buscar</button>
+  </form>
+</section>
+
 <table class="table">
   <thead>
     <tr>
@@ -13,6 +23,7 @@
       <th>Total</th>
       <th>Estado pago</th>
       <th>Creada</th>
+      <th>Acciones</th>
     </tr>
   </thead>
   <tbody>
@@ -21,12 +32,17 @@
       <td><a href="/admin/orders/{{ o.id }}">#{{ o.id }}</a></td>
       <td>{{ o.user_name }}</td>
       <td>{{ o.user_email }}</td>
-      <td>
-        <a href="/admin/carts/{{ o.cart_id }}">#{{ o.cart_id }}</a>
-      </td>
+      <td><a href="/admin/carts/{{ o.cart_id }}">#{{ o.cart_id }}</a></td>
       <td>${{ "%.2f"|format(o.total) }}</td>
       <td>{{ o.payment_status }}</td>
       <td>{{ o.created_at }}</td>
+      <td>
+        <a href="/admin/orders/{{ o.id }}/edit">Editar</a>
+        &nbsp;|&nbsp;
+        <form method="post" action="/admin/orders/{{ o.id }}/delete" style="display:inline;" onsubmit="return confirm('¿Seguro que querés borrar la orden #{{o.id}}?');">
+          <button type="submit" style="background:transparent;border:none;color:#ff4b6a;cursor:pointer;padding:0;">Borrar</button>
+        </form>
+      </td>
     </tr>
     {% endfor %}
   </tbody>

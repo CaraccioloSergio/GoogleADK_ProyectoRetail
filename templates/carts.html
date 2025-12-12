@@ -3,6 +3,16 @@
 {% block content %}
 <h2>Carritos</h2>
 
+<section class="form-section">
+  <h3>Buscar carritos</h3>
+  <form method="get" action="/admin/carts" class="form-grid">
+    <input type="text" name="q_user" placeholder="Usuario contiene..." value="{{ q_user or '' }}">
+    <input type="text" name="q_email" placeholder="Email exacto..." value="{{ q_email or '' }}">
+    <input type="text" name="q_status" placeholder="status exacto..." value="{{ q_status or '' }}">
+    <button type="submit">Buscar</button>
+  </form>
+</section>
+
 <table class="table">
   <thead>
     <tr>
@@ -14,6 +24,7 @@
       <th>Total</th>
       <th>Creado</th>
       <th>Actualizado</th>
+      <th>Acciones</th>
     </tr>
   </thead>
   <tbody>
@@ -27,6 +38,13 @@
       <td>${{ "%.2f"|format(c.total) }}</td>
       <td>{{ c.created_at }}</td>
       <td>{{ c.updated_at }}</td>
+      <td>
+        <a href="/admin/carts/{{ c.id }}/edit">Editar</a>
+        &nbsp;|&nbsp;
+        <form method="post" action="/admin/carts/{{ c.id }}/delete" style="display:inline;" onsubmit="return confirm('¿Seguro que querés borrar el carrito #{{c.id}}? Se borran sus items.');">
+          <button type="submit" style="background:transparent;border:none;color:#ff4b6a;cursor:pointer;padding:0;">Borrar</button>
+        </form>
+      </td>
     </tr>
     {% endfor %}
   </tbody>

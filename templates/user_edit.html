@@ -1,0 +1,20 @@
+{% extends "admin_base.html" %}
+{% block title %}Editar usuario #{{ user.id }}{% endblock %}
+{% block content %}
+<h2>Editar usuario #{{ user.id }}</h2>
+
+<section class="form-section">
+  <h3>Datos del usuario</h3>
+  <form method="post" action="/admin/users/{{ user.id }}/edit" class="form-grid">
+    <input type="text" name="name" placeholder="Nombre" value="{{ user.name }}" required>
+    <input type="email" name="email" placeholder="Email" value="{{ user.email }}" required>
+    <input type="text" name="phone" placeholder="Teléfono" value="{{ user.phone or '' }}">
+    <input type="text" name="segment" placeholder="Segmento" value="{{ user.segment or '' }}">
+    <button type="submit">Guardar cambios</button>
+  </form>
+
+  <p class="help-text">
+    <a href="/admin/users">← Volver a usuarios</a>
+  </p>
+</section>
+{% endblock %}

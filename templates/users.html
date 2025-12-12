@@ -4,6 +4,17 @@
 <h2>Usuarios</h2>
 
 <section class="form-section">
+  <h3>Buscar usuarios</h3>
+  <form method="get" action="/admin/users" class="form-grid">
+    <input type="text" name="q_name" placeholder="Nombre contiene..." value="{{ q_name or '' }}">
+    <input type="text" name="q_email" placeholder="Email exacto..." value="{{ q_email or '' }}">
+    <input type="text" name="q_phone" placeholder="Teléfono exacto..." value="{{ q_phone or '' }}">
+    <input type="text" name="q_segment" placeholder="Segmento exacto..." value="{{ q_segment or '' }}">
+    <button type="submit">Buscar</button>
+  </form>
+</section>
+
+<section class="form-section">
   <h3>Nuevo usuario</h3>
   <form method="post" action="/admin/users" class="form-grid">
     <input type="text" name="name" placeholder="Nombre" required>
@@ -26,7 +37,7 @@
 <table class="table">
   <thead>
     <tr>
-      <th>ID</th><th>Nombre</th><th>Email</th><th>Teléfono</th><th>Segmento</th><th>Creado</th>
+      <th>ID</th><th>Nombre</th><th>Email</th><th>Teléfono</th><th>Segmento</th><th>Creado</th><th>Acciones</th>
     </tr>
   </thead>
   <tbody>
@@ -38,6 +49,13 @@
       <td>{{ u.phone }}</td>
       <td>{{ u.segment }}</td>
       <td>{{ u.created_at }}</td>
+      <td>
+        <a href="/admin/users/{{ u.id }}/edit">Editar</a>
+        &nbsp;|&nbsp;
+        <form method="post" action="/admin/users/{{ u.id }}/delete" style="display:inline;" onsubmit="return confirm('¿Seguro que querés borrar el usuario #{{u.id}}? Se borran sus carritos/items/órdenes.');">
+          <button type="submit" style="background:transparent;border:none;color:#ff4b6a;cursor:pointer;padding:0;">Borrar</button>
+        </form>
+      </td>
     </tr>
   {% endfor %}
   </tbody>

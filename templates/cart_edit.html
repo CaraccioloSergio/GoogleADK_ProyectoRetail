@@ -1,0 +1,21 @@
+{% extends "admin_base.html" %}
+{% block title %}Editar carrito #{{ cart.id }}{% endblock %}
+{% block content %}
+<h2>Editar carrito #{{ cart.id }}</h2>
+
+<section class="form-section">
+  <h3>Estado del carrito</h3>
+  <p class="help-text">
+    Usuario: <strong>{{ cart.user_name }}</strong> ({{ cart.user_email }}) — Items: <strong>{{ cart.items_count }}</strong> — Total: <strong>${{ "%.2f"|format(cart.total) }}</strong>
+  </p>
+
+  <form method="post" action="/admin/carts/{{ cart.id }}/edit" class="form-grid">
+    <input type="text" name="status" placeholder="status" value="{{ cart.status }}" required>
+    <button type="submit">Guardar cambios</button>
+  </form>
+
+  <p class="help-text">
+    <a href="/admin/carts/{{ cart.id }}">← Volver al detalle</a>
+  </p>
+</section>
+{% endblock %}

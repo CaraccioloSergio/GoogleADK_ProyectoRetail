@@ -21,13 +21,13 @@ Start-Process powershell -ArgumentList @(
 Start-Process powershell -ArgumentList @(
     "-NoExit",
     "-Command",
-    "cd `"$projectRoot`"; `"$projectRoot\.venv\Scripts\Activate.ps1`"; uvicorn whatsapp_server:app --reload --port 9000"
+    "cd `"$projectRoot`"; `"$projectRoot\.venv\Scripts\Activate.ps1`"; uvicorn whatsapp_server:app --reload --port 9001"
 )
 
 # 4) Ngrok apuntando al WhatsApp server
 Start-Process powershell -ArgumentList @(
     "-NoExit",
     "-Command",
-    "cd `"$projectRoot`"; ngrok http 9000"
+    "cd `"$projectRoot`"; ngrok http 9001"
 )
 

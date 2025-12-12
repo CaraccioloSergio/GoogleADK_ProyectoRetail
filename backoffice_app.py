@@ -864,6 +864,97 @@ def api_checkout(payload: CheckoutRequest) -> Dict[str, Any]:
         "payment_url": payment_url,
     }
 
+# Base del checkout frontend (index.html)
+CHECKOUT_FRONTEND_BASE = os.getenv(
+    "CHECKOUT_FRONTEND_URL",
+    "http://localhost:8001/index.html"
+)
+
+@app.get("/checkout/{order_id}")
+def redirect_checkout(order_id: int):
+    """
+    Redirige a la página de checkout (index.html) armando internamente
+    el querystring largo a partir de la orden en la base.
+
+    URL corta que verá el usuario:
+      http://localhost:8000/checkout/{order_id}
+    """
+    with get_connection() as conn:
+        # Buscar la orden
+        order = conn.execute(
+            """
+            SELECT id, user_id, cart_id, total, payment_status, created_at
+            FROM orders
+            WHERE id = ?
+            """,
+            (order_id,),
+        ).fetchone()
+
+        if not order:
+            raise HTTPException(status_code=404, detail="Orden no encontrada")
+
+        # Traer el usuario
+        user = conn.execute(
+            """
+            SELECT id, name, email
+            FROM users
+            WHERE id = ?
+            """,
+            (order["user_id"],),
+        ).fetchone()
+
+        if not user:
+            raise HTTPException(status_code=404, detail="Usuario de la orden no encontrado")
+
+        # Traer ítems del carrito
+        items_rows = conn.execute(
+            """
+            SELECT
+                ci.product_id,
+                p.name AS product_name,
+                ci.quantity,
+                ci.unit_price,
+                (ci.quantity * ci.unit_price) AS line_total
+            FROM cart_items ci
+            JOIN products p ON p.id = ci.product_id
+            WHERE ci.cart_id = ?
+            ORDER BY p.name
+            """,
+            (order["cart_id"],),
+        ).fetchall()
+
+    items = [
+        {
+            "product_id": r["product_id"],
+            "name": r["product_name"],
+            "quantity": r["quantity"],
+            "unit_price": float(r["unit_price"]),
+            "line_total": float(r["line_total"]),
+        }
+        for r in items_rows
+    ]
+
+    # Armamos el JSON de items y lo encodeamos en base64 URL-safe
+    items_json = json.dumps(items, ensure_ascii=False)
+    items_b64 = base64.urlsafe_b64encode(items_json.encode("utf-8")).decode("utf-8")
+
+    # Armamos el querystring como antes, pero acá adentro
+    params = {
+        "user_id": user["id"],
+        "name": user["name"],
+        "email": user["email"],
+        "amount": f"{float(order['total']):.2f}",
+        "items": items_b64,
+    }
+
+    query_string = "&".join(
+        f"{key}={quote_plus(str(value))}" for key, value in params.items()
+    )
+
+    final_url = f"{CHECKOUT_FRONTEND_BASE}?{query_string}"
+
+    return RedirectResponse(url=final_url)
+
 
 # -------------------------
 # API JSON: PRODUCTS
@@ -953,6 +1044,128 @@ def api_list_orders():
         ).fetchall()
     return [Order(**dict(r)) for r in rows]
 
+@app.get("/orders/last")
+def api_get_last_order(user_id: int = Query(...)) -> Dict[str, Any]:
+    """
+    Devuelve el último pedido de un usuario (si existe), con sus ítems.
+    """
+    with get_connection() as conn:
+        order = conn.execute(
+            """
+            SELECT id, user_id, cart_id, total, payment_status, created_at
+            FROM orders
+            WHERE user_id = ?
+            ORDER BY created_at DESC
+            LIMIT 1
+            """,
+            (user_id,),
+        ).fetchone()
+
+        if not order:
+            return {
+                "status": "not_found",
+                "message": "El usuario no tiene pedidos previos."
+            }
+
+        items_rows = conn.execute(
+            """
+            SELECT
+                p.name AS product_name,
+                ci.quantity
+            FROM cart_items ci
+            JOIN products p ON p.id = ci.product_id
+            WHERE ci.cart_id = ?
+            ORDER BY p.name
+            """,
+            (order["cart_id"],),
+        ).fetchall()
+
+        items = [
+            {
+                "name": r["product_name"],
+                "quantity": r["quantity"],
+            }
+            for r in items_rows
+        ]
+
+        return {
+            "status": "found",
+            "order": {
+                "id": order["id"],
+                "user_id": order["user_id"],
+                "cart_id": order["cart_id"],
+                "total": float(order["total"]),
+                "payment_status": order["payment_status"],
+                "created_at": order["created_at"],
+                "items": items,
+            },
+        }
+
+@app.get("/orders/by_user")
+def api_orders_by_user(
+    user_id: int = Query(...),
+    limit: int = Query(3, ge=1, le=50),
+):
+    """
+    Devuelve los últimos pedidos de un usuario (incluye items).
+    Pensado para que el agente pueda responder "¿cómo va mi último pedido?"
+    o "¿qué pedí la vez pasada?".
+    """
+    with get_connection() as conn:
+        orders = conn.execute(
+            """
+            SELECT id, user_id, cart_id, total, payment_status, created_at
+            FROM orders
+            WHERE user_id = ?
+            ORDER BY created_at DESC
+            LIMIT ?
+            """,
+            (user_id, limit),
+        ).fetchall()
+
+        result = []
+        for o in orders:
+            items_rows = conn.execute(
+                """
+                SELECT
+                    p.sku,
+                    p.name AS product_name,
+                    ci.quantity,
+                    ci.unit_price,
+                    (ci.quantity * ci.unit_price) AS line_total
+                FROM cart_items ci
+                JOIN products p ON p.id = ci.product_id
+                WHERE ci.cart_id = ?
+                ORDER BY p.name
+                """,
+                (o["cart_id"],),
+            ).fetchall()
+
+            items = []
+            for r in items_rows:
+                items.append(
+                    {
+                        "sku": r["sku"],
+                        "name": r["product_name"],
+                        "quantity": r["quantity"],
+                        "unit_price": float(r["unit_price"]),
+                        "line_total": float(r["line_total"]),
+                    }
+                )
+
+            result.append(
+                {
+                    "id": o["id"],
+                    "user_id": o["user_id"],
+                    "cart_id": o["cart_id"],
+                    "total": float(o["total"]),
+                    "payment_status": o["payment_status"],
+                    "created_at": o["created_at"],
+                    "items": items,
+                }
+            )
+
+    return result
 
 @app.get("/orders/{order_id}", response_model=Order)
 def api_get_order(order_id: int):
@@ -968,3 +1181,42 @@ def api_get_order(order_id: int):
     if not row:
         raise HTTPException(status_code=404, detail="Orden no encontrada")
     return Order(**dict(row))
+
+
+
+@app.get("/orders/payment_link")
+def api_get_order_payment_link(order_id: int = Query(...)) -> Dict[str, Any]:
+    """
+    Devuelve el link de pago para una orden ya creada.
+    Si ya existe, lo devuelve.
+    Si no existe, genera uno simple basado en el checkout.
+    """
+
+    with get_connection() as conn:
+        order = conn.execute(
+            """
+            SELECT id, user_id, cart_id, total, payment_status
+            FROM orders
+            WHERE id = ?
+            """,
+            (order_id,),
+        ).fetchone()
+
+        if not order:
+            return {
+                "status": "not_found",
+                "message": "No existe esa orden."
+            }
+
+        # Generamos un link simple basado en los datos de la orden
+        # (para demo es perfecto)
+        payment_url = (
+            f"http://localhost:8001/index.html"
+            f"?order_id={order['id']}&user_id={order['user_id']}&total={order['total']}"
+        )
+
+        return {
+            "status": "found",
+            "order_id": order_id,
+            "payment_url": payment_url,
+        }

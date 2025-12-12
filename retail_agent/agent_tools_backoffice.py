@@ -413,18 +413,14 @@ def get_cart_summary(user_id: int) -> Dict[str, Any]:
 
 def checkout_cart(user_id: int, email: str) -> Dict[str, Any]:
     """
-    Hace checkout del carrito en el backoffice y genera un link de pago.
+    Hace checkout del carrito en el backoffice y genera un link de pago corto.
 
-    Requiere endpoint:
-    POST /orders/checkout
-    body: { "user_id": int, "email": str }
-    resp:
-      {
-        "order_id": int,
-        "total": float,
-        "payment_url": str
-      }
+    Flujo:
+    - Llama a POST /orders/checkout → crea la orden en la base
+      (si existe un carrito abierto para ese usuario).
+    - Construye una URL corta: {BACKOFFICE_BASE_URL}/checkout/{order_id}
     """
+
     try:
         result = _api_post(
             "/orders/checkout",
@@ -433,18 +429,110 @@ def checkout_cart(user_id: int, email: str) -> Dict[str, Any]:
                 "email": email,
             },
         )
+    except requests.exceptions.HTTPError as e:
+        # Errores esperables desde el backoffice
+        if e.response is not None and e.response.status_code == 400:
+            # Ej: "El usuario no tiene un carrito abierto para checkout."
+            return {
+                "status": "error",
+                "error_message": "No encontré un carrito abierto para este usuario. Primero hay que armar el carrito.",
+            }
+        return {
+            "status": "error",
+            "error_message": f"No pude finalizar la compra en el backoffice: {e}",
+        }
     except Exception as e:
         return {
             "status": "error",
-            "error_message": (
-                "No pude finalizar la compra en el backoffice. "
-                f"Detalle: {e}"
-            ),
+            "error_message": f"Error inesperado al finalizar la compra: {e}",
         }
+
+    order_id = result.get("order_id")
+    short_url = None
+    if order_id is not None:
+        # Usa la API del backoffice para redirigir a index.html
+        short_url = f"{BACKOFFICE_BASE_URL}/checkout/{order_id}"
 
     return {
         "status": "success",
         "total": result.get("total", 0.0),
-        "payment_url": result.get("payment_url", CHECKOUT_BASE_URL),
-        "order_id": result.get("order_id"),
+        # Siempre priorizamos el link corto; si por algún motivo no se arma,
+        # usamos el payment_url que devuelva el backoffice como fallback.
+        "payment_url": short_url or result.get("payment_url", CHECKOUT_BASE_URL),
+        "order_id": order_id,
     }
+    
+def get_last_order_status(user_id: int, limit: int = 1) -> Dict[str, Any]:
+    """
+    Devuelve el último pedido del usuario.
+
+    Respuesta normalizada para el agente:
+    {
+        "status": "found" | "not_found" | "error",
+        "message": "...",
+        "orders": [ { ...pedido... } ]
+    }
+    """
+    try:
+        result = _api_get(
+            "/orders/last",
+            params={"user_id": user_id, "limit": limit}
+        )
+
+        if not result:
+            return {
+                "status": "not_found",
+                "message": "No encontré pedidos para este usuario.",
+                "orders": [],
+            }
+
+        if result.get("status") != "found" or "order" not in result:
+            return {
+                "status": "not_found",
+                "message": "No encontré pedidos para este usuario.",
+                "orders": [],
+            }
+
+        order = result["order"]
+
+        return {
+            "status": "found",
+            "message": "Pedido encontrado.",
+            "orders": [order],   # lo devolvemos siempre como lista
+        }
+
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": f"Error consultando pedidos: {e}",
+            "orders": [],
+        }
+        
+def get_checkout_link_for_last_order(user_id: int) -> Dict[str, Any]:
+    """
+    Devuelve el payment_url corto para el último pedido del usuario.
+    Internamente llama a /orders/by_user y construye /checkout/{order_id}.
+    """
+    try:
+        orders = _api_get("/orders/by_user", params={"user_id": user_id, "limit": 1})
+
+        if not orders:
+            return {
+                "status": "not_found",
+                "message": "Este usuario no tiene pedidos previos."
+            }
+
+        order = orders[0]
+        order_id = order["id"]
+
+        return {
+            "status": "success",
+            "order_id": order_id,
+            "payment_url": f"{BACKOFFICE_BASE_URL}/checkout/{order_id}"
+        }
+
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": f"Error al obtener el link de pago: {e}"
+        }

@@ -1,141 +1,292 @@
-# Retail Agent Demo (Google ADK)
+# GoogleADK – Proyecto Retail (Milo por WhatsApp)
 
-Demo de un **agente de ventas y soporte para retail** construido con **Google Agent Development Kit (ADK)**.
+Proyecto demo para el equipo **GenIA** de YopLabs.
 
-Funcionalidades principales:
+Es un agente de supermercado llamado **Milo** construido con **Google Agent Development Kit (ADK)**, que se conecta a un **backoffice en FastAPI + SQLite**, expone un **checkout web estático** y conversa con clientes por **WhatsApp usando Twilio**.
 
-- Identificación de usuario por **email** y/o **teléfono**
-- Búsqueda de productos en un **catálogo de prueba**
-- Manejo de **carrito de compras** (agregar productos, ver resumen)
-- Simulación de **checkout**, generando un **link de pago** que apunta a una landing de YopLabs
-
-Este proyecto está pensado como **POC** para usar en:
-- Demos técnicas (devs)
-- Demos comerciales (LinkedIn, potenciales clientes)
-- Base para conectar luego con **WhatsApp** (Twilio / Meta Cloud API)
+> Objetivo: tener un flujo de punta a punta para demo técnica/comercial:  
+> WhatsApp → Agente ADK (Milo) → Backoffice → Checkout.
 
 ---
 
-## Estructura
+## ✨ Funcionalidades 
+
+- Identificación de usuarios por:
+  - Nombre
+  - Email
+  - (y número de WhatsApp en la DB, listo para escalar la demo)
+- Búsqueda de productos en un catálogo de prueba.
+- Manejo completo de carrito:
+  - Agregar productos.
+  - Ver resumen.
+- Checkout:
+  - Generación de **link de pago** apuntando al mini-checkout local.
+- Integración con **WhatsApp (Twilio Sandbox)**:
+  - Conversación natural con Milo desde tu celu.
+  - El agente **mantiene contexto** de la sesión por número de WhatsApp.
+
+---
+
+## 🧱 Arquitectura general
+
+- **`backoffice_app.py`**
+  - API JSON + Panel admin (FastAPI + Jinja2).
+  - DB SQLite (`retail.db`).
+  - Endpoints:
+    - `/users`, `/users/search`, `/users/by_email`
+    - `/products`
+    - `/carts/add_item`, `/carts/summary`
+    - `/orders/checkout`, `/orders`
+- **`retail_agent/agent.py`**
+  - Definición del agente ADK (**Milo**).
+  - Usa `agent_tools_backoffice.py` para hablar con el backoffice.
+- **`retail_agent/agent_tools_backoffice.py`**
+  - Implementa las “tools” del agente:
+    - `search_users`, `create_user`
+    - `search_products`
+    - `add_product_to_cart`, `get_cart_summary`
+    - `checkout_cart`
+- **`checkout_web/`**
+  - Mini frontend estático HTML/CSS/JS para mostrar el carrito y simular el pago.
+- **`whatsapp_server.py`**
+  - FastAPI con endpoint de webhook para Twilio.
+  - Usa un `Runner` de Google ADK para enviar/recibir mensajes del agente.
+  - Gestiona sesiones por número de WhatsApp.
+
+---
+
+## 📁 Estructura del proyecto
 
 ```text
-retail-agent-demo/
+GoogleADK_ProyectoRetail/
+│
+├── backoffice_app.py          # FastAPI: API + panel administracion
+├── retail.db                  # DB SQLite (se genera/llena en runtime)
+├── schema.sql                 # Esquema de la base de datos
 │
 ├── retail_agent/
 │   ├── __init__.py
-│   ├── agent.py          # Definición del agente ADK y tools
-│   ├── data.py           # "Base de datos" de prueba (usuarios + productos)
-│   ├── cart_store.py     # Manejo de carritos en memoria
-│   └── .env.example      # Ejemplo de configuración de entorno
+│   ├── .env.example           # Ejemplo de config para el agente
+│   ├── .env                   # (ignorado en git) credenciales reales
+│   ├── agent.py               # Definición del agente Milo (Google ADK)
+│   └── agent_tools_backoffice.py  # Tools conectadas al backoffice
 │
-├── requirements.txt
-# Retail Agent Demo (Google ADK)
-
-Demo de un agente de ventas y soporte para retail construido con el
-Google Agent Development Kit (ADK). Es una prueba de concepto que
-integra un backoffice (FastAPI + SQLite) con un conjunto de tools que
-usa el agente para identificar usuarios, buscar productos, administrar
-carritos y generar links de pago para un checkout simple.
-
-Características principales
-- Identificación de usuario por `email` y/o `teléfono`.
-- Búsqueda de productos en un catálogo local de ejemplo.
-- Manejo de carrito de compras (agregar, ver resumen, checkout).
-- Panel administrativo simple (FastAPI + plantillas Jinja2).
-
-Casos de uso
-- Demos técnicas y comerciales.
-- Base para integrar canales (WhatsApp, web chat) usando Google ADK.
-
-Estructura del proyecto
-
-```
-retail-agent-demo/
+├── checkout_web/
+│   ├── index.html             # Landing de checkout
+│   ├── script.js              # Lógica del resumen de compra
+│   └── styles.css             # Estilos del checkout
 │
-├── backoffice_app.py        # FastAPI app (API + panel admin)
-├── schema.sql              # Esquema SQLite para la DB local
-├── retail.db               # (se crea al iniciar el backoffice si no existe)
-├── retail_agent/           # Código del agente y tools (Google ADK)
-│   ├── agent.py
-│   └── agent_tools_backoffice.py
-├── requirements.txt
-├── CONFIG.md               # Guía paso a paso de configuración y uso
-├── README.md
-└── checkout_web/           # Mini frontend estático para el flujo de checkout
-        ├── index.html
-        ├── script.js
-        └── styles.css
+├── static/                    # Assets estáticos del panel admin
+├── templates/                 # Plantillas Jinja2 del panel admin
+│
+├── whatsapp_server.py         # Webhook WhatsApp (Twilio) + Runner ADK
+├── requirements.txt           # Dependencias Python
+├── CONFIG.md                  # Notas internas de configuración
+└── README.md                  # Este archivo
+````
+
+---
+
+## 🔧 Requisitos
+
+* **Python** 3.10 o superior.
+* **pip**
+* (Opcional) **Git** para clonar el repo.
+* Cuenta en **Twilio** con **WhatsApp Sandbox** habilitado.
+* Clave de **Google AI Studio** o configuración de **Vertex AI**
+  (el agente usa `gemini-2.0-flash` vía `google-adk` / `google-genai`).
+
+---
+
+## 🚀 Setup inicial (local)
+
+Desde la raíz del proyecto (`GoogleADK_ProyectoRetail/`):
+
+### 1. Clonar y entrar al repo
+
+```bash
+git clone https://github.com/CaraccioloSergio/GoogleADK_ProyectoRetail.git
+cd GoogleADK_ProyectoRetail
 ```
 
-Quickstart (local)
-1. Requisitos
-     - Python 3.10+ instalado.
-     - Git (opcional) para clonar el repo.
+### 2. Crear y activar entorno virtual
 
-2. Crear y activar un entorno virtual
-     - Windows (PowerShell):
-         ```powershell
-         python -m venv .venv
-         .\.venv\Scripts\Activate.ps1
-         ```
+**Windows (PowerShell):**
 
-3. Instalar dependencias
-     ```powershell
-     pip install -r requirements.txt
-     ```
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+```
 
-4. Variables de entorno (opcional)
-- `BACKOFFICE_BASE_URL` — URL base para que el agente hable con el backoffice (por defecto `http://localhost:8000`).
-- `CHECKOUT_BASE_URL` — URL base que usa el backoffice para generar el link de pago (por defecto `http://localhost:8001/index.html`).
-- `ADMIN_USER` / `ADMIN_PASSWORD` — credenciales del panel admin (por defecto `admin` / `admin123`).
+### 3. Instalar dependencias
 
-5. Iniciar backoffice (API + admin)
-     ```powershell
-     # desde la raíz del proyecto
-     uvicorn backoffice_app:app --reload --host 0.0.0.0 --port 8000
-     ```
-     - La primera vez se ejecuta `init_db()` y se crea `retail.db` con `schema.sql`.
+```bash
+pip install -r requirements.txt
+```
 
-6. Iniciar el mini-checkout web (servidor estático)
-     ```powershell
-     cd checkout_web
-     python -m http.server 8001
-     ```
+---
 
-7. Abrir panel admin
-     - URL: `http://localhost:8000/admin`
-     - Usuario por defecto: `admin` / `admin123` (cambiar para producción).
+## ⚙️ Variables de entorno
 
-Probando endpoints (ejemplos)
-- Crear producto (POST):
-    ```powershell
-    curl -X POST "http://localhost:8000/products" -H "Content-Type: application/json" -d '{"sku":"P001","name":"Leche 1L","price":150.0}'
-    ```
-- Crear usuario (POST):
-    ```powershell
-    curl -X POST "http://localhost:8000/users" -H "Content-Type: application/json" -d '{"name":"Juan","email":"juan@example.com"}'
-    ```
+El proyecto usa dos `.env`:
 
-Sobre el agente (Google ADK)
-- El agente está definido en `retail_agent/agent.py`. Usa `google.adk.agents.Agent`
-    y emplea las tools en `retail_agent/agent_tools_backoffice.py` para consultar
-    y operar sobre el backoffice.
-- `agent_tools_backoffice.py` contiene helpers que consumen la API del
-    backoffice (`BACKOFFICE_BASE_URL`) para: identificar/crear usuarios,
-    buscar productos, agregar ítems al carrito, ver el resumen y hacer
-    checkout.
-- Este repo incluye la lógica del agente; lanzar un runtime de ADK o
-    integrarlo con un canal (WhatsApp, web) queda fuera del scope, pero
-    la definición del agente (`root_agent`) está lista para importarse
-    desde un runner que instancie el SDK de Google ADK.
+1. **Para el agente**: `retail_agent/.env`
+2. (Opcional) Podés usar variables de entorno del sistema para Twilio / Google.
 
-Contribuir
-- Abrir un issue o PR con mejoras. Para cambios en dependencias,
-    actualizá `requirements.txt`.
+Ejemplo sugerido para `retail_agent/.env`:
 
-Licencia y créditos
-- Proyecto de ejemplo / POC. Adaptá credenciales y secretos antes de
-    usar en producción.
+```env
+# Google / Gemini
+GOOGLE_API_KEY=TU_API_KEY_DE_GOOGLE_AI
 
-Contacto
-- Autor: revisá el repo para datos del owner o contactame vía GitHub.
+# Backoffice
+BACKOFFICE_BASE_URL=http://localhost:8000
+
+# Checkout (link que genera el backoffice)
+CHECKOUT_BASE_URL=http://localhost:8001/index.html
+```
+
+Ejemplo de variables de entorno para **Twilio** (las podés exportar en tu shell o configurar en `.env` del root si preferís):
+
+```env
+TWILIO_ACCOUNT_SID=ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+TWILIO_AUTH_TOKEN=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+TWILIO_WHATSAPP_NUMBER=whatsapp:+14155238886     # número del sandbox
+```
+
+---
+
+## 🖥️ Levantar los servicios
+
+### 1. Backoffice (API + Panel admin)
+
+Desde la raíz del proyecto:
+
+```bash
+uvicorn backoffice_app:app --reload --host 0.0.0.0 --port 8000
+```
+
+* La primera vez ejecuta `init_db()` y crea/llena `retail.db` con `schema.sql`.
+* Panel admin:
+  👉 `http://localhost:8000/admin`
+  Usuario por defecto: `admin` / `admin123` (solo demo).
+
+### 2. Checkout web
+
+En otra terminal:
+
+```bash
+cd checkout_web
+python -m http.server 8001
+```
+
+* El backoffice genera links del tipo:
+
+  ```
+  http://localhost:8001/index.html?user_id=...&name=...&email=...&amount=...&items=...
+  ```
+
+---
+
+## ☎️ Integración con WhatsApp (Twilio)
+
+### 1. Levantar el servidor de WhatsApp
+
+Volvé a la raíz del proyecto con el entorno virtual activo:
+
+```bash
+uvicorn whatsapp_server:app --reload --port 9002
+```
+
+> Podés usar otro puerto, pero tiene que coincidir con el que expongas por **ngrok** y configures en Twilio.
+
+### 2. Exponer el servidor con ngrok
+
+En otra terminal:
+
+```bash
+ngrok http 9002
+```
+
+* Copiá la URL HTTPS que te dé ngrok, por ejemplo:
+
+  ```
+  https://abcd-1234-xyz.ngrok-free.app
+  ```
+
+### 3. Configurar Twilio Sandbox
+
+En la consola de Twilio (WhatsApp Sandbox):
+
+* **WHEN A MESSAGE COMES IN** → pegá la URL de ngrok con el path del webhook:
+
+  ```text
+  https://abcd-1234-xyz.ngrok-free.app/whatsapp
+  ```
+
+* Guardá cambios.
+
+### 4. Probar desde tu celular
+
+1. Seguí las instrucciones de Twilio para unirte al sandbox (enviando el código que te dan).
+2. Escribí a tu número de sandbox (algo como `whatsapp:+14155238886`).
+3. Mandá un mensaje, por ejemplo:
+
+   > Hola, quiero hacer mi compra de supermercado
+
+En la consola de Uvicorn deberías ver el log con los form params de Twilio y la respuesta generada por Milo.
+
+---
+
+## 👨‍🍳 Sobre Milo (el agente)
+
+El agente está definido en `retail_agent/agent.py`:
+
+* Modelo: `gemini-2.0-flash`
+* Rol:
+
+  * Vendedor de supermercado amable, directo, en tono rioplatense.
+  * Mantiene el contexto de:
+
+    * Usuario identificado (nombre, email, teléfono / WhatsApp).
+    * Carrito actual.
+* Usa las tools de `agent_tools_backoffice.py` para:
+
+  * `search_users` / `create_user`
+  * `search_products`
+  * `add_product_to_cart`
+  * `get_cart_summary`
+  * `checkout_cart`
+
+---
+
+## 🧪 Probando el backoffice con curl (opcional)
+
+Crear un usuario:
+
+```bash
+curl -X POST "http://localhost:8000/users" ^
+  -H "Content-Type: application/json" ^
+  -d "{\"name\":\"Juan\",\"email\":\"juan@example.com\"}"
+```
+
+Crear un producto:
+
+```bash
+curl -X POST "http://localhost:8000/products" ^
+  -H "Content-Type: application/json" ^
+  -d "{\"sku\":\"P001\",\"name\":\"Leche 1L\",\"price\":150.0}"
+```
+
+---
+
+## 🤝 Contribuciones y notas
+
+* Este repo es un **POC** para demos internas y clientes.
+* Antes de usar en producción:
+
+  * Mover credenciales a un manejador seguro (Secret Manager, Vault, etc.).
+  * Cambiar usuarios/contraseñas por defecto.
+  * Revisar CORS, seguridad de endpoints, logging, etc.
+
+---

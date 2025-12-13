@@ -1,21 +1,33 @@
 {% extends "admin_base.html" %}
-{% block title %}Editar carrito #{{ cart.id }}{% endblock %}
+{% block title %}Editar Carrito #{{ cart.id }}{% endblock %}
 {% block content %}
-<h2>Editar carrito #{{ cart.id }}</h2>
+<h2>Editar Carrito #{{ cart.id }}</h2>
 
 <section class="form-section">
   <h3>Estado del carrito</h3>
-  <p class="help-text">
-    Usuario: <strong>{{ cart.user_name }}</strong> ({{ cart.user_email }}) — Items: <strong>{{ cart.items_count }}</strong> — Total: <strong>${{ "%.2f"|format(cart.total) }}</strong>
-  </p>
-
   <form method="post" action="/admin/carts/{{ cart.id }}/edit" class="form-grid">
-    <input type="text" name="status" placeholder="status" value="{{ cart.status }}" required>
-    <button type="submit">Guardar cambios</button>
+    <select name="status" required style="grid-column: span 3;">
+      <option value="open" {% if cart.status == 'open' %}selected{% endif %}>Open</option>
+      <option value="active" {% if cart.status == 'active' %}selected{% endif %}>Active</option>
+      <option value="pending" {% if cart.status == 'pending' %}selected{% endif %}>Pending</option>
+      <option value="checked_out" {% if cart.status == 'checked_out' %}selected{% endif %}>Checked Out</option>
+      <option value="abandoned" {% if cart.status == 'abandoned' %}selected{% endif %}>Abandoned</option>
+    </select>
+
+    <button type="submit">Guardar Cambios</button>
   </form>
 
-  <p class="help-text">
-    <a href="/admin/carts/{{ cart.id }}">← Volver al detalle</a>
-  </p>
+  <div style="margin-top: 16px;">
+    <a href="/admin/carts" style="color: var(--text-muted); font-size: 14px;">← Volver a carritos</a>
+  </div>
+</section>
+
+<section class="detail-card" style="margin-top: 24px;">
+  <h3>Información del carrito</h3>
+  <p><strong>Usuario:</strong> {{ cart.user_name }} ({{ cart.user_email }})</p>
+  <p><strong>Items:</strong> {{ cart.items_count }}</p>
+  <p><strong>Total:</strong> ${{ "%.2f"|format(cart.total) }}</p>
+  <p><strong>Creado:</strong> {{ cart.created_at }}</p>
+  <p><strong>Actualizado:</strong> {{ cart.updated_at }}</p>
 </section>
 {% endblock %}

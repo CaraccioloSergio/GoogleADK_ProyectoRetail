@@ -4,47 +4,49 @@
 {% block content %}
 <h2>Orden #{{ order.id }}</h2>
 
-<p class="help-text">
-  <a href="/admin/orders/{{ order.id }}/edit">✏️ Editar orden</a>
-</p>
-
-<section class="detail-header">
-  <div class="detail-card">
-    <h3>Datos de la orden</h3>
-    <p><strong>Usuario:</strong> {{ order.user_name }} ({{ order.user_email }})</p>
-    <p>
-      <strong>Carrito:</strong>
-      <a href="/admin/carts/{{ order.cart_id }}">#{{ order.cart_id }}</a>
-    </p>
-    <p><strong>Total:</strong> ${{ "%.2f"|format(order.total) }}</p>
-    <p><strong>Estado de pago:</strong> {{ order.payment_status }}</p>
-    <p><strong>Creada:</strong> {{ order.created_at }}</p>
-  </div>
+<section class="detail-card">
+  <h3>Datos de la orden</h3>
+  <p><strong>Usuario:</strong> {{ order.user_name }} ({{ order.user_email }})</p>
+  <p>
+    <strong>Carrito:</strong>
+    <a href="/admin/carts/{{ order.cart_id }}">#{{ order.cart_id }}</a>
+  </p>
+  <p><strong>Total:</strong> ${{ "%.2f"|format(order.total) }}</p>
+  <p>
+    <strong>Estado de pago:</strong>
+    {% if order.payment_status == 'paid' or order.payment_status == 'completed' %}
+      <span class="badge badge-success">{{ order.payment_status }}</span>
+    {% elif order.payment_status == 'pending' %}
+      <span class="badge badge-warning">{{ order.payment_status }}</span>
+    {% else %}
+      <span class="badge badge-danger">{{ order.payment_status }}</span>
+    {% endif %}
+  </p>
+  <p><strong>Creada:</strong> {{ order.created_at }}</p>
 </section>
 
-<section class="table-section">
-  <h3>Productos de la orden</h3>
-  <table class="table">
-    <thead>
-      <tr>
-        <th>SKU</th>
-        <th>Producto</th>
-        <th>Cant.</th>
-        <th>Precio unit.</th>
-        <th>Subtotal</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for item in items %}
-      <tr>
-        <td>{{ item.sku }}</td>
-        <td>{{ item.product_name }}</td>
-        <td>{{ item.quantity }}</td>
-        <td>${{ "%.2f"|format(item.unit_price) }}</td>
-        <td>${{ "%.2f"|format(item.line_total) }}</td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-</section>
+<h3 style="margin-top: 40px;">Productos de la orden</h3>
+
+<table class="table">
+  <thead>
+    <tr>
+      <th>SKU</th>
+      <th>Producto</th>
+      <th>Cant.</th>
+      <th>Precio unit.</th>
+      <th>Subtotal</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for item in items %}
+    <tr>
+      <td><code>{{ item.sku }}</code></td>
+      <td>{{ item.product_name }}</td>
+      <td>{{ item.quantity }}</td>
+      <td>${{ "%.2f"|format(item.unit_price) }}</td>
+      <td>${{ "%.2f"|format(item.line_total) }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
 {% endblock %}

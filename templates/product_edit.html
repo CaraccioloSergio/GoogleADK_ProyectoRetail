@@ -1,29 +1,28 @@
 {% extends "admin_base.html" %}
-{% block title %}Editar producto #{{ product.id }}{% endblock %}
+{% block title %}Editar Producto #{{ product.id }}{% endblock %}
 {% block content %}
-<h2>Editar producto #{{ product.id }}</h2>
+<h2>Editar Producto #{{ product.id }}</h2>
 
 <section class="form-section">
-  <h3>Datos del producto</h3>
+  <h3>Información del producto</h3>
   <form method="post" action="/admin/products/{{ product.id }}/edit" class="form-grid">
     <input type="text" name="sku" placeholder="SKU" value="{{ product.sku }}" required>
     <input type="text" name="name" placeholder="Nombre" value="{{ product.name }}" required>
-    <input type="number" step="0.01" name="price" placeholder="Precio" value="{{ '%.2f'|format(product.price) }}" required>
-
+    <input type="number" step="0.01" name="price" placeholder="Precio" value="{{ product.price }}" required>
     <input type="text" name="category" placeholder="Categoría" value="{{ product.category or '' }}">
-    <input type="number" name="stock" placeholder="Stock" value="{{ product.stock or 0 }}">
+    <input type="number" name="stock" placeholder="Stock" value="{{ product.stock }}">
 
     <label class="checkbox-inline">
       <input type="checkbox" name="is_offer" {% if product.is_offer %}checked{% endif %}> En oferta
     </label>
 
-    <textarea name="description" placeholder="Descripción" rows="2">{{ product.description or '' }}</textarea>
+    <textarea name="description" placeholder="Descripción" rows="3">{{ product.description or '' }}</textarea>
 
-    <button type="submit">Guardar cambios</button>
+    <button type="submit">Guardar Cambios</button>
   </form>
 
-  <p class="help-text">
-    <a href="/admin/products">← Volver a productos</a>
-  </p>
+  <div style="margin-top: 16px;">
+    <a href="/admin/products" style="color: var(--text-muted); font-size: 14px;">← Volver a productos</a>
+  </div>
 </section>
 {% endblock %}

@@ -2,6 +2,7 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{% block title %}Admin Retail{% endblock %}</title>
   <link rel="stylesheet" href="/static/admin.css">
 </head>
@@ -10,18 +11,39 @@
     <div class="topbar-left">
       <span class="logo">YopRetail Admin</span>
     </div>
-    <div class="topbar-right">
-      <a href="/admin">Dashboard</a>
-      <a href="/admin/users">Usuarios</a>
-      <a href="/admin/products">Productos</a>
-      <a href="/admin/carts">Carritos</a>
-      <a href="/admin/orders">Órdenes</a>
-      <a href="/admin/logout">Salir</a>
-    </div>
+    <nav class="topbar-right">
+      <a href="/admin" class="nav-link {% if request.path == '/admin' or request.path == '/admin/' %}active{% endif %}">Dashboard</a>
+      <a href="/admin/users" class="nav-link {% if '/admin/users' in request.path %}active{% endif %}">Usuarios</a>
+      <a href="/admin/products" class="nav-link {% if '/admin/products' in request.path %}active{% endif %}">Productos</a>
+      <a href="/admin/carts" class="nav-link {% if '/admin/carts' in request.path %}active{% endif %}">Carritos</a>
+      <a href="/admin/orders" class="nav-link {% if '/admin/orders' in request.path %}active{% endif %}">Órdenes</a>
+      <a href="/admin/logout" class="nav-link nav-logout">Salir</a>
+    </nav>
   </header>
 
   <main class="content">
     {% block content %}{% endblock %}
   </main>
+
+  <script>
+    // Añadir clase active al link correcto basándose en la URL actual
+    document.addEventListener('DOMContentLoaded', function() {
+      const currentPath = window.location.pathname;
+      const navLinks = document.querySelectorAll('.nav-link');
+      
+      navLinks.forEach(link => {
+        const href = link.getAttribute('href');
+        
+        // Dashboard exacto
+        if (href === '/admin' && (currentPath === '/admin' || currentPath === '/admin/')) {
+          link.classList.add('active');
+        }
+        // Otras páginas (debe contener la ruta)
+        else if (href !== '/admin' && href !== '/admin/logout' && currentPath.startsWith(href)) {
+          link.classList.add('active');
+        }
+      });
+    });
+  </script>
 </body>
 </html>

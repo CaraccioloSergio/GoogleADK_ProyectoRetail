@@ -1,20 +1,27 @@
 {% extends "admin_base.html" %}
-{% block title %}Editar usuario #{{ user.id }}{% endblock %}
+{% block title %}Editar Usuario #{{ user.id }}{% endblock %}
 {% block content %}
-<h2>Editar usuario #{{ user.id }}</h2>
+<h2>Editar Usuario #{{ user.id }}</h2>
 
 <section class="form-section">
-  <h3>Datos del usuario</h3>
+  <h3>Información del usuario</h3>
   <form method="post" action="/admin/users/{{ user.id }}/edit" class="form-grid">
     <input type="text" name="name" placeholder="Nombre" value="{{ user.name }}" required>
     <input type="email" name="email" placeholder="Email" value="{{ user.email }}" required>
     <input type="text" name="phone" placeholder="Teléfono" value="{{ user.phone or '' }}">
-    <input type="text" name="segment" placeholder="Segmento" value="{{ user.segment or '' }}">
-    <button type="submit">Guardar cambios</button>
+    <input type="text" name="segment" placeholder="Segmento" value="{{ user.segment or 'nuevo' }}">
+
+    <button type="submit">Guardar Cambios</button>
   </form>
 
-  <p class="help-text">
-    <a href="/admin/users">← Volver a usuarios</a>
-  </p>
+  <div style="margin-top: 16px;">
+    <a href="/admin/users" style="color: var(--text-muted); font-size: 14px;">← Volver a usuarios</a>
+  </div>
+</section>
+
+<section class="detail-card" style="margin-top: 24px;">
+  <h3>Información adicional</h3>
+  <p><strong>ID:</strong> {{ user.id }}</p>
+  <p><strong>Fecha de registro:</strong> {{ user.created_at }}</p>
 </section>
 {% endblock %}

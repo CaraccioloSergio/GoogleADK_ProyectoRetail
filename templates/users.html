@@ -50,7 +50,15 @@
   </form>
 </div>
 
-<section class="form-section">
+<!-- Botón para mostrar/ocultar formulario de creación -->
+<button class="search-toggle" onclick="toggleSearch('userForm')">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <path d="M12 5v14M5 12h14"/>
+  </svg>
+  Nuevo usuario
+</button>
+
+<section id="userForm" class="form-section collapsed">
   <h3>Nuevo usuario</h3>
   <form method="post" action="/admin/users" class="form-grid">
     <input type="text" name="name" placeholder="Nombre" required>

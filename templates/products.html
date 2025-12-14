@@ -52,7 +52,15 @@
   </form>
 </div>
 
-<section class="form-section">
+<!-- Botón para mostrar/ocultar formulario de creación -->
+<button class="search-toggle" onclick="toggleSearch('productForm')">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <path d="M12 5v14M5 12h14"/>
+  </svg>
+  Nuevo producto
+</button>
+
+<section id="productForm" class="form-section collapsed">
   <h3>Nuevo producto</h3>
   <form method="post" action="/admin/products" class="form-grid">
     <input type="text" name="sku" placeholder="SKU" required>

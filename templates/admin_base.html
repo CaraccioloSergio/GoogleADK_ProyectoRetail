@@ -30,25 +30,157 @@
     {% block content %}{% endblock %}
   </main>
 
-  <script>
-    // Añadir clase active al link correcto basándose en la URL actual
-    document.addEventListener('DOMContentLoaded', function() {
-      const currentPath = window.location.pathname;
-      const navLinks = document.querySelectorAll('.nav-link');
-      
-      navLinks.forEach(link => {
-        const href = link.getAttribute('href');
-        
-        // Dashboard exacto
-        if (href === '/admin' && (currentPath === '/admin' || currentPath === '/admin/')) {
-          link.classList.add('active');
-        }
-        // Otras páginas (debe contener la ruta)
-        else if (href !== '/admin' && href !== '/admin/logout' && currentPath.startsWith(href)) {
-          link.classList.add('active');
-        }
+<script>
+/* ==========================================================
+   TABLE SORT (global) - para todas las tablas .table
+   ========================================================== */
+
+(function () {
+  function normalizeText(str) {
+    return (str || "")
+      .toString()
+      .trim()
+      .replace(/\s+/g, " ")
+      .toLowerCase();
+  }
+
+  function parseDateTime(str) {
+    // Formato esperado: YYYY-MM-DD HH:MM:SS
+    const m = (str || "").trim().match(/^(\d{4})-(\d{2})-(\d{2})(?:\s+(\d{2}):(\d{2})(?::(\d{2}))?)?$/);
+    if (!m) return null;
+    const y = Number(m[1]), mo = Number(m[2]) - 1, d = Number(m[3]);
+    const hh = Number(m[4] || 0), mm = Number(m[5] || 0), ss = Number(m[6] || 0);
+    const dt = new Date(y, mo, d, hh, mm, ss);
+    return isNaN(dt.getTime()) ? null : dt.getTime();
+  }
+
+  function parseNumberLike(str) {
+    // Moneda: $23,200.00  /  $23200.00  /  23200  /  23.200,00
+    let s = (str || "").toString().trim();
+    if (!s) return null;
+
+    // sacá símbolos y espacios
+    s = s.replace(/[^\d.,-]/g, "");
+
+    // si tiene ambos separadores, decidimos por el último
+    const hasDot = s.includes(".");
+    const hasComma = s.includes(",");
+
+    if (hasDot && hasComma) {
+      // si la coma aparece después del punto => coma decimal (23.200,50)
+      if (s.lastIndexOf(",") > s.lastIndexOf(".")) {
+        s = s.replace(/\./g, "").replace(",", ".");
+      } else {
+        // punto decimal (23,200.50)
+        s = s.replace(/,/g, "");
+      }
+    } else if (hasComma && !hasDot) {
+      // coma decimal simple (1200,50)
+      s = s.replace(",", ".");
+    } else {
+      // dot decimal o entero -> ok
+    }
+
+    const n = Number(s);
+    return Number.isFinite(n) ? n : null;
+  }
+
+  function cellValueForSort(td) {
+    // Si el contenido es badge, usamos su texto (“sí/no”, “open”, etc.)
+    const badge = td.querySelector(".badge");
+    const raw = badge ? badge.textContent : td.textContent;
+    return (raw || "").trim();
+  }
+
+  function detectType(sample) {
+    const s = (sample || "").trim();
+    if (!s) return "text";
+
+    const dt = parseDateTime(s);
+    if (dt !== null) return "date";
+
+    const num = parseNumberLike(s);
+    if (num !== null) return "number";
+
+    return "text";
+  }
+
+  function setHeaderIndicator(th, dir) {
+    // limpiamos indicadores en el row
+    const row = th.parentElement;
+    row.querySelectorAll("th").forEach(h => {
+      h.removeAttribute("data-sort-dir");
+    });
+    th.setAttribute("data-sort-dir", dir);
+  }
+
+  function sortTableByColumn(table, colIndex, dir) {
+    const tbody = table.tBodies[0];
+    const rows = Array.from(tbody.querySelectorAll("tr"));
+
+    // sample para detectar tipo
+    const sample = rows.find(r => r.children[colIndex] && r.children[colIndex].textContent.trim());
+    const sampleVal = sample ? cellValueForSort(sample.children[colIndex]) : "";
+    const type = detectType(sampleVal);
+
+    const multiplier = dir === "asc" ? 1 : -1;
+
+    rows.sort((a, b) => {
+      const aCell = a.children[colIndex];
+      const bCell = b.children[colIndex];
+      const av = aCell ? cellValueForSort(aCell) : "";
+      const bv = bCell ? cellValueForSort(bCell) : "";
+
+      if (type === "number") {
+        const an = parseNumberLike(av) ?? -Infinity;
+        const bn = parseNumberLike(bv) ?? -Infinity;
+        return (an - bn) * multiplier;
+      }
+
+      if (type === "date") {
+        const ad = parseDateTime(av) ?? 0;
+        const bd = parseDateTime(bv) ?? 0;
+        return (ad - bd) * multiplier;
+      }
+
+      // text
+      const at = normalizeText(av);
+      const bt = normalizeText(bv);
+      if (at < bt) return -1 * multiplier;
+      if (at > bt) return  1 * multiplier;
+      return 0;
+    });
+
+    // re-append ordenado
+    rows.forEach(r => tbody.appendChild(r));
+  }
+
+  function makeTablesSortable() {
+    document.querySelectorAll("table.table").forEach((table) => {
+      const thead = table.tHead;
+      if (!thead || !table.tBodies.length) return;
+
+      const headers = Array.from(thead.querySelectorAll("th"));
+      headers.forEach((th, idx) => {
+        const label = (th.textContent || "").trim().toLowerCase();
+        // No hacer sortable la columna "Acciones"
+        if (label === "acciones") return;
+
+        th.classList.add("th-sortable");
+        th.style.cursor = "pointer";
+
+        th.addEventListener("click", () => {
+          const current = th.getAttribute("data-sort-dir");
+          const next = current === "asc" ? "desc" : "asc";
+          setHeaderIndicator(th, next);
+          sortTableByColumn(table, idx, next);
+        });
       });
     });
-  </script>
+  }
+
+  document.addEventListener("DOMContentLoaded", makeTablesSortable);
+})();
+</script>
 </body>
 </html>

@@ -249,6 +249,9 @@ h3 {
   text-transform: uppercase;
   letter-spacing: 0.5px;
   border-bottom: 2px solid var(--border-color);
+  white-space: nowrap;  /* Agregá esto */
+  padding: 14px 16px;    /* Asegurate que esté */
+  text-align: left;       /* Y esto también */
 }
 
 .table tbody tr {
@@ -279,6 +282,10 @@ h3 {
   border: 1px solid var(--border-color);
   margin-bottom: 32px;
   box-shadow: var(--shadow-sm);
+}
+
+.form-section.collapsed {
+  display: none;
 }
 
 .form-section h3 {
@@ -662,6 +669,7 @@ section + h3 {
   font-size: 14px;
   font-weight: 500;
   margin-bottom: 16px;
+  margin-right: 12px;
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -679,7 +687,20 @@ section + h3 {
   height: 16px;
 }
 
+/* Contenedor de botones de acción */
+.action-bar {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+}
+
 .search-bar.collapsed {
+  display: none;
+}
+
+/* Formularios colapsables */
+.form-section.collapsed {
   display: none;
 }
 
@@ -832,6 +853,61 @@ section + h3 {
   color:var(--text-primary);
 }
 
+
+/* ===========================
+   SORT UI (tabla ordenable)
+   =========================== */
+
+th.th-sortable {
+  user-select: none;
+  position: relative;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+th.th-sortable:hover{
+  background: rgba(255,255,255,0.04);
+  color: var(--text-primary);
+}
+
+/* icono por defecto (sutil, solo al hover) */
+th.th-sortable::after{
+  content: "↕";
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-left: 6px;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  display: inline-block;
+  vertical-align: middle;
+}
+
+th.th-sortable:hover::after{
+  opacity: 0.75;
+}
+
+/* cuando está ordenado: icono visible y en rojo */
+th.th-sortable[data-sort-dir="asc"]::after{
+  content: "▲";
+  font-size: 11px;
+  opacity: 1;
+  color: var(--accent-primary);
+}
+
+th.th-sortable[data-sort-dir="desc"]::after{
+  content: "▼";
+  font-size: 11px;
+  opacity: 1;
+  color: var(--accent-primary);
+}
+
+/* subrayado / highlight suave en la columna activa */
+th.th-sortable[data-sort-dir="asc"],
+th.th-sortable[data-sort-dir="desc"]{
+  background: rgba(193, 18, 31, 0.10); /* rojo super suave */
+  color: var(--text-primary);
+}
+
 /* ===========================
    RESPONSIVE
    =========================== */
@@ -887,6 +963,7 @@ section + h3 {
     padding: 32px 24px;
   }
 }
+
 
 @media (max-width: 480px) {
   .big-number {

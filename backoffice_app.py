@@ -1151,6 +1151,56 @@ def api_cart_summary(user_id: int = Query(...)) -> Dict[str, Any]:
         "total": summary["total"],
     }
 
+class CartClearRequest(BaseModel):
+    user_id: int
+
+@app.post("/carts/clear")
+def api_cart_clear(payload: CartClearRequest) -> Dict[str, Any]:
+    with get_connection() as conn:
+        cur = conn.cursor()
+
+        # Buscar carrito abierto más reciente
+        cart = cur.execute(
+            """
+            SELECT id
+            FROM carts
+            WHERE user_id = ? AND status = 'open'
+            ORDER BY created_at DESC
+            LIMIT 1
+            """,
+            (payload.user_id,),
+        ).fetchone()
+
+        if not cart:
+            # No hay carrito abierto → devolvemos "ok" con carrito vacío
+            return {
+                "status": "success",
+                "message": "No había carrito abierto. Ya está vacío.",
+                "cart_id": None,
+                "user_id": payload.user_id,
+                "items": [],
+                "total": 0.0,
+            }
+
+        cart_id = cart["id"]
+
+        # Borrar items del carrito abierto
+        cur.execute("DELETE FROM cart_items WHERE cart_id = ?", (cart_id,))
+        cur.execute(
+            "UPDATE carts SET updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+            (cart_id,),
+        )
+        conn.commit()
+
+        # Resumen vacío post-clear
+        return {
+            "status": "success",
+            "message": "Carrito reiniciado.",
+            "cart_id": cart_id,
+            "user_id": payload.user_id,
+            "items": [],
+            "total": 0.0,
+        }
 
 # -------------------------
 # API JSON: CHECKOUT

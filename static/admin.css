@@ -7,13 +7,23 @@
   --bg-secondary: #111827;
   --bg-tertiary: #1f2937;
   --border-color: #374151;
+
   --text-primary: #f9fafb;
   --text-secondary: #d1d5db;
   --text-muted: #9ca3af;
-  --accent-primary: #f59e0b;
-  --accent-secondary: #ef4444;
+
+  /* Yoplabs Red (sobrio) */
+  --accent-primary: #c1121f;   /* rojo principal */
+  --accent-hover:   #e11d2e;   /* rojo para hover/active */
+  --accent-soft:    rgba(193, 18, 31, 0.12); /* fondos sutiles */
+  --accent-ring:    rgba(193, 18, 31, 0.22); /* focus ring */
+
+  /* Estados */
   --accent-success: #10b981;
+  --accent-warning: #f59e0b;
+
   --hover-overlay: rgba(255, 255, 255, 0.05);
+
   --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
   --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4);
   --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
@@ -37,9 +47,7 @@ a {
   transition: color 0.2s ease;
 }
 
-a:hover {
-  color: #fbbf24;
-}
+a:hover { color: var(--accent-hover); }
 
 code {
   background: var(--bg-tertiary);
@@ -47,7 +55,7 @@ code {
   border-radius: 4px;
   font-size: 13px;
   font-family: "SF Mono", Monaco, monospace;
-  color: var(--accent-primary);
+  color: #f9fafb; 
 }
 
 /* ===========================
@@ -203,7 +211,7 @@ h3 {
   font-size: 40px;
   margin: 8px 0 0 0;
   font-weight: 700;
-  background: linear-gradient(135deg, var(--accent-primary), #b4891c);
+  background: linear-gradient(135deg, var(--accent-primary), var(--accent-hover));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -304,10 +312,12 @@ h3 {
 
 .form-grid input:focus,
 .form-grid textarea:focus,
-.form-grid select:focus {
-  outline: none;
+.form-grid select:focus,
+.search-form input:focus,
+.search-form select:focus,
+.login-card input:focus {
   border-color: var(--accent-primary);
-  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.1);
+  box-shadow: 0 0 0 3px var(--accent-ring);
 }
 
 .form-grid textarea {
@@ -319,7 +329,7 @@ h3 {
 .form-grid button {
   grid-column: span 3;
   padding: 12px 24px;
-  background: linear-gradient(135deg, var(--accent-primary), #664c0a);
+  background: linear-gradient(135deg, var(--accent-primary), #7f0a13);
   color: white;
   border: none;
   border-radius: 8px;
@@ -386,7 +396,7 @@ h3 {
 }
 
 .upload-form button:hover {
-  background: #fbbf24;
+  background: #7c2020;
   transform: translateY(-1px);
 }
 
@@ -463,7 +473,7 @@ h3 {
   padding: 14px;
   border-radius: 8px;
   border: none;
-  background: linear-gradient(135deg, var(--accent-primary), #fbbf24);
+  background: linear-gradient(135deg, var(--accent-primary), #7f0a13);
   color: white;
   font-weight: 600;
   font-size: 15px;
@@ -540,7 +550,7 @@ section + h3 {
 
 .badge-warning {
   background: rgba(245, 158, 11, 0.2);
-  color: var(--accent-primary);
+  color: var(--accent-warning);
 }
 
 .badge-danger {
@@ -627,7 +637,7 @@ section + h3 {
 }
 
 .btn-search:hover {
-  background: #fbbf24;
+  background: #fb2424c0;
   transform: translateY(-1px);
 }
 
@@ -720,7 +730,7 @@ section + h3 {
   align-items: center;
   gap: 12px;
   padding: 12px 16px;
-  background: rgba(245, 158, 11, 0.1);
+  background: var(--accent-soft);
   border: 1px solid var(--accent-primary);
   border-radius: 8px;
   margin-bottom: 16px;
@@ -752,6 +762,74 @@ section + h3 {
   background: var(--hover-overlay);
   color: var(--text-primary);
   border-color: var(--accent-primary);
+}
+
+.brand{
+  display:flex;
+  align-items:center;
+  gap:12px;
+  text-decoration:none;
+}
+
+.brand-badge{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:6px 10px;
+  border-radius:10px;
+
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+.brand-logo{
+  height: 34px;
+  width: auto;
+  display:block;
+}
+
+/*LOGIN*/
+
+.login-header{
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap:18px;
+  margin-bottom:24px;
+}
+
+/* Badge del logo */
+.login-brand-badge{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+
+  padding:10px 16px;
+  border-radius:14px;
+
+  
+  border: 1px solid rgba(0,0,0,0.06);
+
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+/* Logo */
+.login-brand-logo{
+  height:70px;
+  width:auto;
+  display:block;
+}
+
+/* Título */
+.login-header h1{
+  margin:0;
+  font-size:1.25rem;
+  font-weight:700;
+  color:var(--text-primary);
 }
 
 /* ===========================

@@ -9,7 +9,12 @@
 <body>
   <header class="topbar">
     <div class="topbar-left">
-      <span class="logo">YopRetail Admin</span>
+      <a class="brand" href="/admin">
+        <span class="brand-badge">
+          <img src="https://yoplabs.com/wp-content/uploads/2021/05/Logo-Yop-Labs-Calidad.png" alt="YopLabs" class="brand-logo">
+        </span>
+        <span class="logo">YopRetail Admin</span>
+      </a>
     </div>
     <nav class="topbar-right">
       <a href="/admin" class="nav-link {% if request.path == '/admin' or request.path == '/admin/' %}active{% endif %}">Dashboard</a>

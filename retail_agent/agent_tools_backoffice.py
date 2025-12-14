@@ -309,26 +309,86 @@ def add_product_to_cart(
     resp: { "cart_id": int, "user_id": int,
             "items": [...], "total": float }
     """
+
+    # -------------------------
+    # Validación básica
+    # -------------------------
     if quantity <= 0:
         return {
             "status": "error",
             "error_message": "La cantidad debe ser mayor a 0.",
         }
 
+    # -------------------------
     # Validar que el usuario existe
+    # -------------------------
     try:
         user = _api_get(f"/users/{user_id}")
         if not user:
             return {
                 "status": "error",
-                "error_message": f"El usuario con ID {user_id} no existe. Necesitás buscar o crear el usuario primero."
+                "error_message": (
+                    f"El usuario con ID {user_id} no existe. "
+                    "Necesitás buscar o crear el usuario primero."
+                ),
             }
     except Exception as e:
         return {
             "status": "error",
-            "error_message": f"No pude verificar el usuario: {e}"
+            "error_message": f"No pude verificar el usuario: {e}",
         }
 
+    # -------------------------
+    # Validar stock disponible
+    # -------------------------
+    try:
+        products = _api_get("/products") or []
+        p = next(
+            (x for x in products if int(x.get("id")) == int(product_id)),
+            None
+        )
+
+        if not p:
+            return {
+                "status": "error",
+                "error_message": "El producto no existe o no está disponible.",
+            }
+
+        product_name = p.get("name", "este producto")
+        stock = int(p.get("stock", 0) or 0)
+
+        if stock <= 0:
+            return {
+                "status": "error",
+                "error_message": f"No hay stock disponible para '{product_name}'.",
+                "available_stock": 0,
+                "product_name": product_name,
+            }
+
+        if quantity > stock:
+            return {
+                "status": "error",
+                "error_message": (
+                    f"No hay stock suficiente para '{product_name}'. "
+                    f"Stock disponible: {stock}. Pedime una cantidad menor."
+                ),
+                "available_stock": stock,
+                "product_name": product_name,
+            }
+
+    except Exception as e:
+        # Fail-closed: preferimos NO agregar si no pudimos validar stock
+        return {
+            "status": "error",
+            "error_message": (
+                "No pude verificar el stock en este momento. "
+                f"Detalle: {e}"
+            ),
+        }
+
+    # -------------------------
+    # Agregar al carrito
+    # -------------------------
     try:
         cart = _api_post(
             "/carts/add_item",
@@ -338,25 +398,30 @@ def add_product_to_cart(
                 "quantity": quantity,
             },
         )
+
     except requests.exceptions.HTTPError as e:
-        if e.response.status_code == 404:
+        if getattr(e.response, "status_code", None) == 404:
             return {
                 "status": "error",
-                "error_message": "El producto no existe o no está disponible."
+                "error_message": "El producto no existe o no está disponible.",
             }
         return {
             "status": "error",
-            "error_message": f"No pude agregar el producto al carrito: {e}"
+            "error_message": f"No pude agregar el producto al carrito: {e}",
         }
+
     except Exception as e:
         return {
             "status": "error",
-            "error_message": f"Error inesperado: {e}"
+            "error_message": f"Error inesperado al agregar al carrito: {e}",
         }
 
+    # -------------------------
+    # Success
+    # -------------------------
     return {
         "status": "success",
-        "message": f"Agregado al carrito: {quantity}x producto ID {product_id}",
+        "message": f"Agregado al carrito: {quantity}x {product_name}",
         "cart": cart,
     }
 
@@ -405,6 +470,31 @@ def get_cart_summary(user_id: int) -> Dict[str, Any]:
         "total": summary.get("total", 0.0),
         "cart_id": summary.get("cart_id"),
     }
+    
+def clear_cart(user_id: int) -> Dict[str, Any]:
+    """
+    Reinicia (vacía) el carrito abierto del usuario.
+    Requiere endpoint:
+    POST /carts/clear
+    body: {"user_id": int}
+    """
+    try:
+        result = _api_post("/carts/clear", {"user_id": user_id})
+        return result if isinstance(result, dict) else {
+            "status": "error",
+            "error_message": "Respuesta inválida al reiniciar el carrito."
+        }
+    except requests.exceptions.HTTPError as e:
+        return {
+            "status": "error",
+            "error_message": f"No pude reiniciar el carrito: {e}",
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "error_message": f"Error inesperado al reiniciar el carrito: {e}",
+        }
+
 
 
 # =====================================================

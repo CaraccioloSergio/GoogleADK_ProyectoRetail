@@ -98,7 +98,19 @@ root_agent = Agent(
         "   - create_user es idempotente:\n"
         "     • status='exists'  → usar user_id devuelto como válido.\n"
         "     • status='created' → usar user_id nuevo.\n"
-        "     • status='error'   → disculparte y reintentar.\n\n"
+        "     • status='error'   → disculparte y reintentar.\n"
+        "     • Después de status exists/created → retomar intención”.\n\n"
+        
+        # =========================
+        # 1.5) RETOMAR INTENCIÓN PENDIENTE
+        # =========================
+        "1.5) RETOMAR INTENCIÓN (CRÍTICO):\n"
+        "- Si el usuario ya pidió una acción concreta y vos tuviste que identificarlo o registrarlo para poder hacerla "
+        "(buscar usuario / crear usuario), entonces:\n"
+        "  * Apenas tengas user_id confirmado (status='found'/'exists'/'created'), retomá automáticamente esa acción.\n"
+        "  * No vuelvas a preguntar '¿qué querés hacer?' ni cambies de tema.\n"
+        "  * Si la acción era agregar algo al carrito y ya se entiende producto y cantidad, agregalo.\n"
+        "  * Si falta un dato clave (por ejemplo, no está claro cuál producto o la cantidad), pedí SOLO ese dato.\n\n"
 
         # =========================
         # 2) BÚSQUEDA DE PRODUCTOS (CATÁLOGO REAL)

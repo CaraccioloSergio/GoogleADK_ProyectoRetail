@@ -2,6 +2,16 @@ from pathlib import Path
 from typing import List, Optional, Dict, Any 
 
 import os
+from dotenv import load_dotenv
+from pathlib import Path
+
+BASE_DIR = Path(__file__).resolve().parent
+RETAIL_AGENT_DIR = BASE_DIR / "retail_agent"
+ENV_PATH = RETAIL_AGENT_DIR / ".env"
+
+load_dotenv(ENV_PATH, override=True)
+print("DEBUG loaded env from:", ENV_PATH)
+
 import json
 import base64
 import sqlite3
@@ -19,13 +29,36 @@ from fastapi import (
     status,
     File,
     UploadFile,
-    Query
+    Query,
+    Header
 )
 from fastapi.responses import RedirectResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, EmailStr, Field
 from starlette.middleware.sessions import SessionMiddleware
+
+import time
+from collections import defaultdict, deque
+
+LOGIN_RATE_WINDOW = 60      # segundos
+LOGIN_RATE_MAX = 5          # intentos
+_login_attempts = defaultdict(deque)
+
+def rate_limit_login(key: str):
+    now = time.time()
+    q = _login_attempts[key]
+
+    while q and now - q[0] > LOGIN_RATE_WINDOW:
+        q.popleft()
+
+    if len(q) >= LOGIN_RATE_MAX:
+        raise HTTPException(
+            status_code=429,
+            detail="Demasiados intentos. Esperá un minuto."
+        )
+
+    q.append(now)
 
 # -------------------------
 # Paths base
@@ -40,8 +73,19 @@ CHECKOUT_BASE_URL = os.getenv(
 # -------------------------
 # Config admin (simple)
 # -------------------------
-ADMIN_USER = "admin"
-ADMIN_PASSWORD = "admin123"  # para demo; en prod, ponelo en .env
+ADMIN_USER = os.getenv("ADMIN_USER", "")
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "")
+
+if not ADMIN_USER or not ADMIN_PASSWORD:
+    raise RuntimeError("ADMIN_USER / ADMIN_PASSWORD no configurados")
+
+BACKOFFICE_API_KEY = os.getenv("BACKOFFICE_API_KEY", "")
+if not BACKOFFICE_API_KEY:
+    raise RuntimeError("BACKOFFICE_API_KEY no configurada")
+
+def require_api_key(x_api_key: str = Header(default="")):
+    if x_api_key != BACKOFFICE_API_KEY:
+        raise HTTPException(status_code=401, detail="Unauthorized")
 
 app = FastAPI(
     title="Retail Backoffice API + Admin",
@@ -50,7 +94,10 @@ app = FastAPI(
 )
 
 # Sessions para login
-app.add_middleware(SessionMiddleware, secret_key="super-secret-demo-key")
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=os.getenv("SESSION_SECRET_KEY", "dev-only"),
+)
 
 # Static & templates
 app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
@@ -161,13 +208,17 @@ def admin_login(
     username: str = Form(...),
     password: str = Form(...),
 ):
+    client_ip = request.client.host if request.client else "unknown"
+    rate_limit_login(client_ip)
+
     if username == ADMIN_USER and password == ADMIN_PASSWORD:
         request.session["is_admin"] = True
-        return RedirectResponse(url="/admin", status_code=status.HTTP_303_SEE_OTHER)
+        return RedirectResponse(url="/admin", status_code=303)
+
     return templates.TemplateResponse(
         "login.html",
         {"request": request, "error": "Usuario o contraseña incorrectos."},
-        status_code=status.HTTP_401_UNAUTHORIZED,
+        status_code=401,
     )
 
 
@@ -952,7 +1003,7 @@ def build_cart_summary(conn: sqlite3.Connection, cart_id: int) -> Dict[str, Any]
 # API JSON: USERS
 # -------------------------
 @app.post("/users", response_model=User)
-def create_user(user: UserCreate):
+def create_user(user: UserCreate, _: bool = Depends(require_api_key)):
     with get_connection() as conn:
         try:
             cur = conn.execute(
@@ -974,7 +1025,7 @@ def create_user(user: UserCreate):
 
 
 @app.get("/users", response_model=List[User])
-def list_users():
+def list_users(_: bool = Depends(require_api_key)):
     with get_connection() as conn:
         rows = conn.execute(
             "SELECT id, name, email, phone, segment, created_at FROM users "
@@ -983,7 +1034,7 @@ def list_users():
     return [User(**dict(r)) for r in rows]
 
 @app.get("/users/by_email", response_model=User)
-def get_user_by_email(email: str):
+def get_user_by_email(email: str, _: bool = Depends(require_api_key)):
     with get_connection() as conn:
         row = conn.execute(
             """
@@ -1002,6 +1053,7 @@ def search_users(
     email: Optional[str] = Query(None),
     phone: Optional[str] = Query(None),
     name: Optional[str] = Query(None),
+    _: bool = Depends(require_api_key)
 ):
     """
     Busca usuarios por uno o más criterios usando lógica OR.
@@ -1031,7 +1083,7 @@ def search_users(
     return [User(**dict(r)) for r in rows]
 
 @app.get("/users/{user_id}", response_model=User)
-def get_user(user_id: int):
+def get_user(user_id: int, _: bool = Depends(require_api_key)):
     with get_connection() as conn:
         row = conn.execute(
             "SELECT id, name, email, phone, segment, created_at FROM users WHERE id = ?",
@@ -1046,7 +1098,7 @@ def get_user(user_id: int):
 # API JSON: CARTS
 # -------------------------
 @app.post("/carts/add_item")
-def api_cart_add_item(payload: CartAddItemRequest) -> Dict[str, Any]:
+def api_cart_add_item(payload: CartAddItemRequest, _: bool = Depends(require_api_key)) -> Dict[str, Any]:
     if payload.quantity <= 0:
         raise HTTPException(status_code=400, detail="La cantidad debe ser mayor a 0.")
     with get_connection() as conn:
@@ -1124,7 +1176,7 @@ def api_cart_add_item(payload: CartAddItemRequest) -> Dict[str, Any]:
 
 
 @app.get("/carts/summary")
-def api_cart_summary(user_id: int = Query(...)) -> Dict[str, Any]:
+def api_cart_summary(user_id: int = Query(...), _: bool = Depends(require_api_key)) -> Dict[str, Any]:
     with get_connection() as conn:
         cart = conn.execute(
             """
@@ -1155,7 +1207,7 @@ class CartClearRequest(BaseModel):
     user_id: int
 
 @app.post("/carts/clear")
-def api_cart_clear(payload: CartClearRequest) -> Dict[str, Any]:
+def api_cart_clear(payload: CartClearRequest, _: bool = Depends(require_api_key)) -> Dict[str, Any]:
     with get_connection() as conn:
         cur = conn.cursor()
 
@@ -1206,7 +1258,7 @@ def api_cart_clear(payload: CartClearRequest) -> Dict[str, Any]:
 # API JSON: CHECKOUT
 # -------------------------
 @app.post("/orders/checkout")
-def api_checkout(payload: CheckoutRequest) -> Dict[str, Any]:
+def api_checkout(payload: CheckoutRequest, _: bool = Depends(require_api_key)) -> Dict[str, Any]:
     with get_connection() as conn:
         cur = conn.cursor()
         user = cur.execute(
@@ -1300,7 +1352,7 @@ CHECKOUT_FRONTEND_BASE = os.getenv(
 )
 
 @app.get("/checkout/{order_id}")
-def redirect_checkout(order_id: int):
+def redirect_checkout(order_id: int,):
     """
     Redirige a la página de checkout (index.html) armando internamente
     el querystring largo a partir de la orden en la base.
@@ -1389,7 +1441,7 @@ def redirect_checkout(order_id: int):
 # API JSON: PRODUCTS
 # -------------------------
 @app.post("/products", response_model=Product)
-def api_create_product(product: ProductCreate):
+def api_create_product(product: ProductCreate, _: bool = Depends(require_api_key)):
     with get_connection() as conn:
         try:
             cur = conn.execute(
@@ -1424,7 +1476,7 @@ def api_create_product(product: ProductCreate):
 
 
 @app.get("/products", response_model=List[Product])
-def api_list_products():
+def api_list_products(_: bool = Depends(require_api_key)):
     with get_connection() as conn:
         rows = conn.execute(
             """
@@ -1442,7 +1494,7 @@ def api_list_products():
 
 
 @app.get("/products/{product_id}", response_model=Product)
-def api_get_product(product_id: int):
+def api_get_product(product_id: int, _: bool = Depends(require_api_key)):
     with get_connection() as conn:
         row = conn.execute(
             """
@@ -1462,7 +1514,7 @@ def api_get_product(product_id: int):
 # API JSON: ORDERS
 # -------------------------
 @app.get("/orders", response_model=List[Order])
-def api_list_orders():
+def api_list_orders(_: bool = Depends(require_api_key)):
     with get_connection() as conn:
         rows = conn.execute(
             """
@@ -1474,7 +1526,7 @@ def api_list_orders():
     return [Order(**dict(r)) for r in rows]
 
 @app.get("/orders/last")
-def api_get_last_order(user_id: int = Query(...)) -> Dict[str, Any]:
+def api_get_last_order(user_id: int = Query(...), _: bool = Depends(require_api_key)) -> Dict[str, Any]:
     """
     Devuelve el último pedido de un usuario (si existe), con sus ítems.
     """
@@ -1533,7 +1585,7 @@ def api_get_last_order(user_id: int = Query(...)) -> Dict[str, Any]:
 @app.get("/orders/by_user")
 def api_orders_by_user(
     user_id: int = Query(...),
-    limit: int = Query(3, ge=1, le=50),
+    limit: int = Query(3, ge=1, le=50), _: bool = Depends(require_api_key)
 ):
     """
     Devuelve los últimos pedidos de un usuario (incluye items).
@@ -1597,7 +1649,7 @@ def api_orders_by_user(
     return result
 
 @app.get("/orders/{order_id}", response_model=Order)
-def api_get_order(order_id: int):
+def api_get_order(order_id: int, _: bool = Depends(require_api_key)):
     with get_connection() as conn:
         row = conn.execute(
             """
@@ -1614,7 +1666,7 @@ def api_get_order(order_id: int):
 
 
 @app.get("/orders/payment_link")
-def api_get_order_payment_link(order_id: int = Query(...)) -> Dict[str, Any]:
+def api_get_order_payment_link(order_id: int = Query(...), _: bool = Depends(require_api_key)) -> Dict[str, Any]:
     """
     Devuelve el link de pago para una orden ya creada.
     Si ya existe, lo devuelve.

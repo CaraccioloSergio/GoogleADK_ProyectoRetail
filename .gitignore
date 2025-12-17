@@ -12,3 +12,29 @@ __pycache__/
 
 # VSCode
 .vscode/
+
+
+env.prod
+
+# Env files (todas las variantes)
+.env
+.env.*
+!.env.example
+
+# YAML de env (si lo usás para deploy)
+env*.yaml
+*.secrets.yaml
+
+# Credenciales Google (por si aparece)
+*.json
+!schema.json
+
+# Databases
+*.db
+*.sqlite
+*.sqlite3
+*.duckdb
+
+# ADK sessions / local state
+retail_agent/.adk/
+.adk/

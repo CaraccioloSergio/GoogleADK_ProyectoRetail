@@ -8,7 +8,10 @@ Incluye:
 - search_products
 - add_product_to_cart
 - get_cart_summary
+- clear_cart
 - checkout_cart
+- get_last_order_status
+- get_checkout_link_for_last_order
 """
 
 import os
@@ -16,36 +19,88 @@ from typing import List, Dict, Any, Optional
 
 import requests
 
-# Base URL del backoffice (FastAPI)
-BACKOFFICE_BASE_URL = os.getenv("BACKOFFICE_BASE_URL", "http://localhost:8000")
-CHECKOUT_BASE_URL = os.getenv("CHECKOUT_BASE_URL", "http://localhost:8001/index.html")
+# =====================================================
+# ENV / CONFIG
+# =====================================================
 
+# Base URL del backoffice (FastAPI)
+# - En Cloud Run usamos la URL pública con optimizaciones
+ENV_MODE = (os.getenv("ENV", "") or "").lower()
+
+BACKOFFICE_BASE_URL = os.getenv("BACKOFFICE_BASE_URL")
+if not BACKOFFICE_BASE_URL:
+    if ENV_MODE in ("dev", "local", ""):
+        BACKOFFICE_BASE_URL = "http://127.0.0.1:8080"
+    else:
+        raise RuntimeError("BACKOFFICE_BASE_URL faltante")
+
+# normalizar (evita //)
+BACKOFFICE_BASE_URL = BACKOFFICE_BASE_URL.rstrip("/")
+
+CHECKOUT_BASE_URL = os.getenv("CHECKOUT_BASE_URL")
+if not CHECKOUT_BASE_URL:
+    if ENV_MODE in ("dev", "local", ""):
+        CHECKOUT_BASE_URL = "http://localhost:8001/index.html"
+    else:
+        raise RuntimeError("CHECKOUT_BASE_URL faltante")
+
+BACKOFFICE_API_KEY = os.getenv("BACKOFFICE_API_KEY")
+if not BACKOFFICE_API_KEY:
+    raise RuntimeError("BACKOFFICE_API_KEY faltante")
+
+_session = requests.Session()
+# Optimizaciones para reducir latencia
+_session.headers.update({'Connection': 'keep-alive'})
+# Pool de conexiones para reusar sockets
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
+
+retry_strategy = Retry(
+    total=2,
+    backoff_factor=0.1,
+    status_forcelist=[500, 502, 503, 504],
+)
+adapter = HTTPAdapter(max_retries=retry_strategy, pool_connections=10, pool_maxsize=20)
+_session.mount("http://", adapter)
+_session.mount("https://", adapter)
+
+def _auth_headers() -> Dict[str, str]:
+    # EXACTO como lo espera FastAPI (Header -> x-api-key)
+    return {"x-api-key": BACKOFFICE_API_KEY}
+
+# =====================================================
+# HTTP HELPERS (UNA SOLA DEFINICIÓN, SIN DUPLICADOS)
+# =====================================================
 
 def _api_get(path: str, params: Optional[Dict[str, Any]] = None) -> Any:
     """
-    Helper para hacer GET al backoffice.
-    Devuelve None si el status es 404, lanza excepción en otros errores.
+    GET al backoffice.
+    - Si devuelve 404 -> retorna None (para flujos tipo "no existe").
+    - Si devuelve 2xx -> retorna JSON.
+    - Si devuelve otro error -> levanta excepción (las tools lo capturan y normalizan).
     """
     url = f"{BACKOFFICE_BASE_URL}{path}"
-    resp = requests.get(url, params=params, timeout=5)
+    # Timeout más agresivo: (connect_timeout, read_timeout)
+    resp = _session.get(url, params=params, headers=_auth_headers(), timeout=(2, 8))
     if resp.status_code == 404:
         return None
     resp.raise_for_status()
     return resp.json()
 
-
 def _api_post(path: str, json_data: Dict[str, Any]) -> Any:
     """
-    Helper para hacer POST al backoffice.
+    POST al backoffice.
+    - Si devuelve 2xx -> retorna JSON.
+    - Si devuelve error -> levanta excepción (las tools lo capturan y normalizan).
     """
     url = f"{BACKOFFICE_BASE_URL}{path}"
-    resp = requests.post(url, json=json_data, timeout=5)
+    # Timeout más agresivo
+    resp = _session.post(url, json=json_data, headers=_auth_headers(), timeout=(2, 8))
     resp.raise_for_status()
     return resp.json()
 
-
 # =====================================================
-# TOOL 1: search_users (NUEVA - simplificada)
+# TOOL 1: search_users (mejorada + normalización)
 # =====================================================
 
 def search_users(
@@ -56,7 +111,7 @@ def search_users(
     """
     Busca usuarios en la base de datos usando cualquier combinación de:
     - name (búsqueda parcial)
-    - email (búsqueda exacta, vía /users/search?email=...)
+    - email (búsqueda exacta)
     - phone (búsqueda exacta)
 
     Devuelve:
@@ -64,35 +119,52 @@ def search_users(
     - users: lista de candidatos
     """
 
-    if not any([name, email, phone]):
+    # -------------------------
+    # Normalización de inputs
+    # -------------------------
+    if email:
+        email = str(email).strip().lower()
+
+    if phone:
+        # puede venir como "+549...", "whatsapp:+549...", etc.
+        phone = str(phone).strip()
+        phone = phone.replace("whatsapp:", "")
+        phone = "".join([c for c in phone if c.isdigit()])
+
+    if name:
+        name = " ".join(str(name).strip().split())  # trim + colapsar espacios
+
+    # Anti "null" / vacíos
+    def _is_valid(v: Optional[str]) -> bool:
+        if v is None:
+            return False
+        s = str(v).strip()
+        return bool(s) and s.lower() not in ("null", "none", "undefined")
+
+    if not any([_is_valid(name), _is_valid(email), _is_valid(phone)]):
         return {
             "status": "error",
-            "error_message": "Necesito al menos un dato para buscar (nombre, email o teléfono)",
+            "error_message": "Necesito al menos un dato válido para buscar (nombre, email o teléfono).",
             "users": [],
         }
 
     try:
         params: Dict[str, Any] = {}
-
-        # Si viene solo email, igual usamos /users/search, pero la lógica
-        # de interpretación es la misma: lista de usuarios.
-        if email:
+        if _is_valid(email):
             params["email"] = email
-        if phone:
+        if _is_valid(phone):
             params["phone"] = phone
-        if name:
+        if _is_valid(name):
             params["name"] = name
-
-        params = {k: v for k, v in params.items() if v and v != "null"}
 
         users = _api_get("/users/search", params=params) or []
 
         candidates = [
             {
                 "id": u["id"],
-                "name": u["name"],
-                "email": u["email"],
-                "phone": u.get("phone", ""),
+                "name": u.get("name", ""),
+                "email": u.get("email", ""),
+                "phone": u.get("phone", "") or "",
                 "segment": u.get("segment", "recurrente"),
             }
             for u in users
@@ -114,7 +186,7 @@ def search_users(
 
         return {
             "status": "multiple",
-            "message": f"Encontré {len(candidates)} usuarios. Preguntale cuál corresponde.",
+            "message": f"Encontré {len(candidates)} usuarios. Decime cuál corresponde.",
             "users": candidates,
         }
 
@@ -125,9 +197,8 @@ def search_users(
             "users": [],
         }
 
-
 # =====================================================
-# TOOL 2: create_user (NUEVA - simplificada)
+# TOOL 2: create_user (mejorada + normalización)
 # =====================================================
 
 def create_user(
@@ -137,77 +208,87 @@ def create_user(
 ) -> Dict[str, Any]:
     """
     Crea un nuevo usuario en la base de datos.
-
-    Comportamiento robusto / tolerante al modelo:
-    - Primero busca por email con /users/search.
-    - Si ya existe, devuelve status="exists" con ese usuario.
-    - Si no existe, lo crea y devuelve status="created".
+    
+    OPTIMIZADO: Intenta crear directamente. Si falla por duplicado, es porque ya existe.
     """
+    print(f"🆕 create_user called: name={name}, email={email}, phone={phone}")
+
+    # Normalización
+    name = " ".join((name or "").strip().split())
+    email = (email or "").strip().lower()
+
+    if phone:
+        phone = str(phone).strip().replace("whatsapp:", "")
+        phone = "".join([c for c in phone if c.isdigit()])
+    else:
+        phone = ""
 
     if not name or not email:
         return {
             "status": "error",
-            "error_message": "Para crear un usuario necesito nombre y email",
+            "error_message": "Para crear un usuario necesito nombre y email.",
         }
 
     try:
-        # 1) Ver si ya existe el email usando /users/search
-        try:
-            existing_list = _api_get("/users/search", params={"email": email}) or []
-        except Exception:
-            existing_list = []
-
-        if existing_list:
-            # Tomamos el primero, debería ser único por email
-            existing = existing_list[0]
-            return {
-                "status": "exists",
-                "message": f"El email {email} ya estaba registrado. Uso ese usuario.",
-                "user": {
-                    "id": existing["id"],
-                    "name": existing["name"],
-                    "email": existing["email"],
-                    "phone": existing.get("phone"),
-                    "segment": existing.get("segment", "recurrente"),
-                },
-            }
-
-        # 2) Crear nuevo usuario
+        # Intento crear directamente (optimista)
         new_user = _api_post(
             "/users",
             {
                 "name": name,
                 "email": email,
-                "phone": phone or "",
+                "phone": phone,
                 "segment": "nuevo",
             },
         )
 
+        print(f"✅ Usuario creado: id={new_user['id']}")
+        
         return {
             "status": "created",
-            "message": f"Usuario creado exitosamente: {new_user['name']} ({new_user['email']})",
+            "message": f"Usuario creado exitosamente: {new_user.get('name','')} ({new_user.get('email','')})",
             "user": {
                 "id": new_user["id"],
-                "name": new_user["name"],
-                "email": new_user["email"],
-                "phone": new_user.get("phone"),
+                "name": new_user.get("name", ""),
+                "email": new_user.get("email", ""),
+                "phone": new_user.get("phone", ""),
                 "segment": new_user.get("segment", "nuevo"),
             },
         }
 
     except requests.exceptions.HTTPError as e:
+        # Si es 400, probablemente email duplicado
+        print(f"⚠️  HTTPError al crear usuario: {e.response.status_code if e.response else 'unknown'}")
+        if e.response is not None and e.response.status_code == 400:
+            # Buscar el usuario existente por email
+            try:
+                existing = _api_get("/users/search", params={"email": email}) or []
+                if existing:
+                    user = existing[0]
+                    print(f"⚠️  Usuario ya existía: id={user['id']}")
+                    return {
+                        "status": "exists",
+                        "message": f"El email {email} ya estaba registrado. Uso ese usuario.",
+                        "user": {
+                            "id": user["id"],
+                            "name": user.get("name", ""),
+                            "email": user.get("email", ""),
+                            "phone": user.get("phone", ""),
+                            "segment": user.get("segment", "recurrente"),
+                        },
+                    }
+            except Exception:
+                pass
+        
         return {
             "status": "error",
             "error_message": f"Error al crear usuario: {e}",
         }
+
     except Exception as e:
         return {
             "status": "error",
             "error_message": f"Error inesperado al crear usuario: {e}",
         }
-
-
-
 
 # =====================================================
 # TOOL 3: search_products (sin cambios)
@@ -289,7 +370,6 @@ def search_products(
         "status": "success",
         "items": simplified,
     }
-
 
 # =====================================================
 # TOOL 4: add_product_to_cart (mejorado con validación)
@@ -425,7 +505,6 @@ def add_product_to_cart(
         "cart": cart,
     }
 
-
 # =====================================================
 # TOOL 5: get_cart_summary (sin cambios)
 # =====================================================
@@ -470,7 +549,7 @@ def get_cart_summary(user_id: int) -> Dict[str, Any]:
         "total": summary.get("total", 0.0),
         "cart_id": summary.get("cart_id"),
     }
-    
+
 def clear_cart(user_id: int) -> Dict[str, Any]:
     """
     Reinicia (vacía) el carrito abierto del usuario.
@@ -494,8 +573,6 @@ def clear_cart(user_id: int) -> Dict[str, Any]:
             "status": "error",
             "error_message": f"Error inesperado al reiniciar el carrito: {e}",
         }
-
-
 
 # =====================================================
 # TOOL 6: checkout_cart (sin cambios)
@@ -551,7 +628,7 @@ def checkout_cart(user_id: int, email: str) -> Dict[str, Any]:
         "payment_url": short_url or result.get("payment_url", CHECKOUT_BASE_URL),
         "order_id": order_id,
     }
-    
+
 def get_last_order_status(user_id: int, limit: int = 1) -> Dict[str, Any]:
     """
     Devuelve el último pedido del usuario.
@@ -566,7 +643,7 @@ def get_last_order_status(user_id: int, limit: int = 1) -> Dict[str, Any]:
     try:
         result = _api_get(
             "/orders/last",
-            params={"user_id": user_id, "limit": limit}
+            params={"user_id": user_id}
         )
 
         if not result:
@@ -597,7 +674,7 @@ def get_last_order_status(user_id: int, limit: int = 1) -> Dict[str, Any]:
             "message": f"Error consultando pedidos: {e}",
             "orders": [],
         }
-        
+
 def get_checkout_link_for_last_order(user_id: int) -> Dict[str, Any]:
     """
     Devuelve el payment_url corto para el último pedido del usuario.

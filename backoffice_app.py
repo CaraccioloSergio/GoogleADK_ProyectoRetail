@@ -9,8 +9,11 @@ BASE_DIR = Path(__file__).resolve().parent
 RETAIL_AGENT_DIR = BASE_DIR / "retail_agent"
 ENV_PATH = RETAIL_AGENT_DIR / ".env"
 
-load_dotenv(ENV_PATH, override=True)
-print("DEBUG loaded env from:", ENV_PATH)
+# Solo cargar .env en local/dev, NO en producción
+ENV_MODE = (os.getenv("ENV") or "").lower()
+if ENV_MODE in ("dev", "local", ""):
+    load_dotenv(ENV_PATH, override=False)
+    print(f"DEBUG loaded env from: {ENV_PATH}")
 
 import json
 import base64
@@ -1075,9 +1078,9 @@ def search_users(
     sql = f"""
         SELECT id, name, email, phone, segment, created_at
         FROM users
-        WHERE {' OR '.join(conditions)}
+        WHERE {' AND '.join(conditions)}
         ORDER BY created_at DESC
-    """
+        """
     with get_connection() as conn:
         rows = conn.execute(sql, params).fetchall()
     return [User(**dict(r)) for r in rows]
@@ -1115,8 +1118,13 @@ def api_cart_add_item(payload: CartAddItemRequest, _: bool = Depends(require_api
         ).fetchone()
         if not product:
             raise HTTPException(status_code=404, detail="Producto no encontrado")
-        if product["stock"] is not None and product["stock"] < payload.quantity:
-            raise HTTPException(status_code=400, detail="No hay stock suficiente")
+        # CRÍTICO: Validación de stock mejorada
+        stock_available = product["stock"] if product["stock"] is not None else 999999
+        if stock_available < payload.quantity:
+            raise HTTPException(
+                status_code=400,
+                detail=f"No hay stock suficiente. Disponible: {stock_available}"
+            )
         cart = cur.execute(
             """
             SELECT id
@@ -1145,6 +1153,14 @@ def api_cart_add_item(payload: CartAddItemRequest, _: bool = Depends(require_api
         ).fetchone()
         if existing_item:
             new_qty = existing_item["quantity"] + payload.quantity
+            
+            # CRÍTICO: Validar stock con nueva cantidad total
+            if stock_available < new_qty:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"No hay stock suficiente. Disponible: {stock_available}, ya tenés {existing_item['quantity']} en el carrito"
+                )
+            
             cur.execute(
                 """
                 UPDATE cart_items

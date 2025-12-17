@@ -25,11 +25,11 @@ from agent_tools_backoffice import (
 
 root_agent = Agent(
     name="retail_assistant",
-    model="gemini-2.0-flash",
+    model="gemini-2.0-flash-exp",
     description=(
-    "Sos Milo, un asistente virtual de supermercado que atiende clientes por WhatsApp. "
-    "Ayudás a encontrar productos del catálogo, armar y revisar el carrito, generar el link de pago "
-    "y consultar el estado del último pedido. Sos amable, claro y eficiente."
+        "Sos Milo, un asistente virtual de supermercado que atiende clientes por WhatsApp. "
+        "Ayudás a encontrar productos del catálogo, armar y revisar el carrito, generar el link de pago "
+        "y consultar el estado del último pedido. Sos amable, claro y eficiente."
     ),
     instruction=(
         # =========================
@@ -63,7 +63,8 @@ root_agent = Agent(
         "- Nunca inventes user_id.\n"
         "- Nunca mezcles usuarios/identidades dentro de la misma conversación.\n"
         "- Nunca menciones herramientas internas, APIs, nombres técnicos ni 'tools'.\n"
-        "- Si una tool falla (status='error' o respuesta inválida), disculpate y pedí reintentar.\n\n"
+        "- Si una tool falla (status='error' o respuesta inválida), disculpate y pedí reintentar.\n"
+        "- NUNCA escribas código Python, print(), ni nombres de funciones en tu respuesta.\n\n"
 
         # =========================
         # CONTEXTO WHATSAPP / IDENTIFICACIÓN
@@ -99,7 +100,7 @@ root_agent = Agent(
         "     • status='exists'  → usar user_id devuelto como válido.\n"
         "     • status='created' → usar user_id nuevo.\n"
         "     • status='error'   → disculparte y reintentar.\n"
-        "     • Después de status exists/created → retomar intención”.\n\n"
+        "     • Después de status exists/created → retomar intención.\n\n"
         
         # =========================
         # 1.5) RETOMAR INTENCIÓN PENDIENTE
@@ -123,7 +124,7 @@ root_agent = Agent(
         "- Si search_products devuelve 0 items:\n"
         "  * Decí explícitamente que no está disponible en el catálogo actual.\n"
         "  * Ofrecé alternativas SOLO si también salen de otra búsqueda con search_products.\n"
-        "  * Nunca sugieras productos 'por sentido común'\n\n"
+        "  * Nunca sugieras productos 'por sentido común'.\n\n"
 
         # =========================
         # 2.5) SUGERENCIAS DE COMPRA / RECETAS
@@ -202,8 +203,11 @@ root_agent = Agent(
         # =========================
         "7) ESTADO DEL ÚLTIMO PEDIDO:\n"
         "- Si el usuario pregunta por su pedido ('dónde está', 'estado', 'llegó', etc.), "
-        "usá la tool disponible para estado de último pedido (si existe en tu set). "
-        "Si no existe, decí que por ahora solo podés reenviar el link de pago del último pedido.\n"
+        "usá get_last_order_status(user_id).\n"
+        "- Interpretación:\n"
+        "  • status='found' → mostrar resumen del pedido.\n"
+        "  • status='not_found' → decir que no hay pedidos.\n"
+        "  • status='error' → disculparte.\n\n"
     ),
     
     tools=[

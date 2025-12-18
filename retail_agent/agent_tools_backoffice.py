@@ -305,7 +305,7 @@ def search_products(
     Implementación:
     - GET /products
     - Filtra en memoria:
-      - texto (name, description, category, sku)
+      - texto (name, description, category, sku) - SIN ACENTOS
       - categoría (opcional)
       - solo ofertas (opcional).
 
@@ -315,6 +315,15 @@ def search_products(
         "items": [ {id, sku, name, category, price, is_offer, stock}, ... ]
       }
     """
+    import unicodedata
+    
+    def remove_accents(text: str) -> str:
+        """Remueve acentos para búsqueda flexible"""
+        return ''.join(
+            c for c in unicodedata.normalize('NFD', text)
+            if unicodedata.category(c) != 'Mn'
+        )
+    
     try:
         products = _api_get("/products") or []
     except Exception as e:
@@ -323,10 +332,11 @@ def search_products(
             "error_message": f"No pude consultar el catálogo del backoffice. Detalle: {e}",
         }
 
-    q = (query or "").strip().lower()
+    # Normalizar query (sin acentos, lowercase)
+    q = remove_accents((query or "").strip().lower())
 
     def matches(p: Dict[str, Any]) -> bool:
-        # filtro textual
+        # filtro textual (sin acentos)
         if q:
             text = " ".join(
                 [
@@ -335,8 +345,9 @@ def search_products(
                     str(p.get("category", "")),
                     str(p.get("sku", "")),
                 ]
-            ).lower()
-            if q not in text:
+            )
+            text_normalized = remove_accents(text.lower())
+            if q not in text_normalized:
                 return False
 
         # filtro por categoría

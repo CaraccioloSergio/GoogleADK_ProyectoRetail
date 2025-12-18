@@ -123,8 +123,9 @@ root_agent = Agent(
         "  * Mostrá 2 a 5 opciones reales y preguntá cuál quiere.\n"
         "- Si search_products devuelve 0 items:\n"
         "  * Decí explícitamente que no está disponible en el catálogo actual.\n"
-        "  * Ofrecé alternativas SOLO si también salen de otra búsqueda con search_products.\n"
-        "  * Nunca sugieras productos 'por sentido común'.\n\n"
+        "  * Si el usuario pide alternativas, SIEMPRE buscá primero con search_products.\n"
+        "  * NUNCA sugieras productos 'por sentido común' sin buscarlos.\n"
+        "  * Si después de buscar tampoco hay alternativas, decí que no tenés nada similar.\n\n"
 
         # =========================
         # 2.5) SUGERENCIAS DE COMPRA / RECETAS

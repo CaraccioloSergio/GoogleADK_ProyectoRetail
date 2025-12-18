@@ -81,7 +81,7 @@
 <table class="table">
   <thead>
     <tr>
-      <th>ID</th><th>Nombre</th><th>Email</th><th>Teléfono</th><th>Segmento</th><th>Creado</th><th>Acciones</th>
+      <th>ID</th><th>Nombre</th><th>Email</th><th>Teléfono</th><th>Segmento</th><th>Profesión</th><th>Empresa</th><th>Creado</th><th>Acciones</th>
     </tr>
   </thead>
   <tbody>
@@ -92,6 +92,8 @@
       <td>{{ u.email }}</td>
       <td>{{ u.phone }}</td>
       <td>{{ u.segment }}</td>
+      <td>{{ u.profession or '-' }}</td>
+      <td>{{ u.company or '-' }}</td>
       <td>{{ u.created_at }}</td>
       <td>
         <div class="action-buttons">

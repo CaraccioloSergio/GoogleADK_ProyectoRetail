@@ -703,3 +703,70 @@ def get_checkout_link_for_last_order(user_id: int) -> Dict[str, Any]:
             "status": "error",
             "message": f"Error al obtener el link de pago: {e}"
         }
+
+# =====================================================
+# TOOL 10: update_user_profile (LEAD CAPTURE)
+# =====================================================
+
+def update_user_profile(
+    user_id: int,
+    profession: Optional[str] = None,
+    company: Optional[str] = None,
+    industry: Optional[str] = None,
+    comments: Optional[str] = None,
+) -> Dict[str, Any]:
+    """
+    Actualiza el perfil del usuario con información de negocio (lead capture).
+    
+    Args:
+        user_id: ID del usuario
+        profession: Profesión/rol (ej: "Gerente de Marketing")
+        company: Empresa donde trabaja
+        industry: Industria/sector (ej: "Retail", "E-commerce")
+        comments: Comentarios adicionales
+    
+    Returns:
+        {"status": "success" | "error", "message": "..."}
+    """
+    print(f"📊 update_user_profile called: user_id={user_id}")
+    
+    # Validar que hay al menos un campo para actualizar
+    if not any([profession, company, industry, comments]):
+        return {
+            "status": "error",
+            "message": "Necesito al menos un dato para actualizar."
+        }
+    
+    try:
+        # Construir el payload solo con campos que no son None
+        data = {"user_id": user_id}
+        if profession:
+            data["profession"] = profession.strip()
+        if company:
+            data["company"] = company.strip()
+        if industry:
+            data["industry"] = industry.strip()
+        if comments:
+            data["comments"] = comments.strip()
+        
+        # Llamar al endpoint del backoffice
+        result = _api_post("/users/update_profile", data)
+        
+        print(f"✅ Perfil actualizado: user_id={user_id}")
+        
+        return {
+            "status": "success",
+            "message": "Perfil actualizado exitosamente."
+        }
+    
+    except requests.exceptions.HTTPError as e:
+        return {
+            "status": "error",
+            "message": f"Error al actualizar perfil: {e}"
+        }
+    
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": f"Error inesperado: {e}"
+        }

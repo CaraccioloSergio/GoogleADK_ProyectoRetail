@@ -15,7 +15,8 @@ from agent_tools_backoffice import (
     checkout_cart,
     get_last_order_status,
     get_checkout_link_for_last_order,
-    clear_cart    
+    clear_cart,
+    update_user_profile
 )
 
 
@@ -208,6 +209,40 @@ root_agent = Agent(
         "  • status='found' → mostrar resumen del pedido.\n"
         "  • status='not_found' → decir que no hay pedidos.\n"
         "  • status='error' → disculparte.\n\n"
+        
+        # =========================
+        # 8) POST-CHECKOUT: LEAD CAPTURE
+        # =========================
+        "8) POST-CHECKOUT (RECOLECCIÓN DE LEADS - IMPORTANTE):\n"
+        "- Después de enviar el link de pago, TENÉS UNA OPORTUNIDAD ÚLTIMA para capturar info valiosa.\n"
+        "- Preguntá de forma natural y amigable:\n"
+        "  'Antes de que te vayas, ¿me contarías a qué te dedicás? Me ayuda a mejorar el servicio 😊'\n\n"
+        
+        "- Si el usuario responde con su profesión/rol/empresa:\n"
+        "  * Usá update_user_profile(user_id, profession='...', company='...', industry='...')\n"
+        "  * Si menciona empresa, incluyé company\n"
+        "  * Si menciona industria/sector, incluyé industry\n"
+        "  * Luego agradecé: '¡Genial! Anotado. Gracias por probar la demo 🚀'\n\n"
+        
+        "- Si el usuario NO responde o cambia de tema:\n"
+        "  * No insistas.\n"
+        "  * No menciones lead capture ni captura de datos.\n\n"
+        
+        "- EJEMPLOS DE RESPUESTAS A CAPTURAR:\n"
+        "  Usuario: 'Soy gerente de marketing en Carrefour'\n"
+        "    → update_user_profile(user_id, profession='Gerente de Marketing', company='Carrefour', industry='Retail')\n\n"
+        "  Usuario: 'Trabajo en tecnología'\n"
+        "    → update_user_profile(user_id, industry='Tecnología')\n\n"
+        "  Usuario: 'Soy desarrollador'\n"
+        "    → update_user_profile(user_id, profession='Desarrollador')\n\n"
+        
+        # =========================
+        # 9) CONSULTAS SOBRE ENVÍOS
+        # =========================
+        "9) CONSULTAS SOBRE ENVÍO/DELIVERY:\n"
+        "- Si preguntan por envíos, delivery, entrega a domicilio, tiempos de entrega:\n"
+        "  '🚩 Esta es una demo técnica, así que aún no tengo logística de envíos configurada. '\n"
+        "  'Pero en una implementación real, se integraría fácil con cualquier sistema de delivery 🚚'\n\n"
     ),
     
     tools=[
@@ -219,6 +254,7 @@ root_agent = Agent(
         checkout_cart,
         get_last_order_status,
         get_checkout_link_for_last_order,
-        clear_cart
+        clear_cart,
+        update_user_profile
     ],
 )

@@ -13,6 +13,21 @@
 
     <button type="submit">Guardar Cambios</button>
   </form>
+  
+  <h3 style="margin-top: 32px;">Información de Lead (capturada en demo)</h3>
+  <form method="post" action="/admin/users/{{ user.id }}/edit" class="form-grid">
+    <input type="hidden" name="name" value="{{ user.name }}">
+    <input type="hidden" name="email" value="{{ user.email }}">
+    <input type="hidden" name="phone" value="{{ user.phone or '' }}">
+    <input type="hidden" name="segment" value="{{ user.segment or 'nuevo' }}">
+    
+    <input type="text" name="profession" placeholder="Profesión/Rol" value="{{ user.profession or '' }}">
+    <input type="text" name="company" placeholder="Empresa" value="{{ user.company or '' }}">
+    <input type="text" name="industry" placeholder="Industria" value="{{ user.industry or '' }}">
+    <textarea name="comments" placeholder="Comentarios adicionales" rows="3">{{ user.comments or '' }}</textarea>
+
+    <button type="submit">Guardar Info de Lead</button>
+  </form>
 
   <div style="margin-top: 16px;">
     <a href="/admin/users" style="color: var(--text-muted); font-size: 14px;">← Volver a usuarios</a>

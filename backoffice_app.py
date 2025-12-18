@@ -281,7 +281,7 @@ def admin_users(
     with get_connection() as conn:
         rows = conn.execute(
             f"""
-            SELECT id, name, email, phone, segment, created_at
+            SELECT id, name, email, phone, segment, profession, company, industry, created_at
             FROM users
             {where}
             ORDER BY created_at DESC
@@ -309,7 +309,7 @@ def admin_user_edit_page(
 ):
     with get_connection() as conn:
         user = conn.execute(
-            "SELECT id, name, email, phone, segment, created_at FROM users WHERE id = ?",
+            "SELECT id, name, email, phone, segment, profession, company, industry, comments, created_at FROM users WHERE id = ?",
             (user_id,),
         ).fetchone()
     if not user:
@@ -327,6 +327,10 @@ def admin_user_edit_save(
     email: str = Form(...),
     phone: str = Form(""),
     segment: str = Form("nuevo"),
+    profession: str = Form(""),
+    company: str = Form(""),
+    industry: str = Form(""),
+    comments: str = Form(""),
     _: bool = Depends(get_current_admin),
 ):
     with get_connection() as conn:
@@ -334,10 +338,13 @@ def admin_user_edit_save(
             cur = conn.execute(
                 """
                 UPDATE users
-                SET name = ?, email = ?, phone = ?, segment = ?
+                SET name = ?, email = ?, phone = ?, segment = ?,
+                    profession = ?, company = ?, industry = ?, comments = ?
                 WHERE id = ?
                 """,
-                (name, email, phone or None, segment or None, user_id),
+                (name, email, phone or None, segment or None,
+                 profession or None, company or None, industry or None, comments or None,
+                 user_id),
             )
             conn.commit()
         except sqlite3.IntegrityError:
@@ -1717,3 +1724,66 @@ def api_get_order_payment_link(order_id: int = Query(...), _: bool = Depends(req
             "order_id": order_id,
             "payment_url": payment_url,
         }
+
+# -------------------------
+# API JSON: UPDATE USER PROFILE (LEAD CAPTURE)
+# -------------------------
+
+class UserProfileUpdate(BaseModel):
+    user_id: int
+    profession: Optional[str] = None
+    company: Optional[str] = None
+    industry: Optional[str] = None
+    comments: Optional[str] = None
+
+@app.post("/users/update_profile")
+def api_update_user_profile(payload: UserProfileUpdate, _: bool = Depends(require_api_key)) -> Dict[str, Any]:
+    """
+    Actualiza el perfil del usuario con información de negocio (lead capture).
+    Usado después del checkout para recolectar info del lead.
+    """
+    with get_connection() as conn:
+        # Verificar que el usuario existe
+        user = conn.execute(
+            "SELECT id FROM users WHERE id = ?",
+            (payload.user_id,),
+        ).fetchone()
+        
+        if not user:
+            raise HTTPException(status_code=404, detail="Usuario no encontrado")
+        
+        # Construir UPDATE dinámicamente solo con campos provistos
+        updates = []
+        params = []
+        
+        if payload.profession is not None:
+            updates.append("profession = ?")
+            params.append(payload.profession.strip())
+        
+        if payload.company is not None:
+            updates.append("company = ?")
+            params.append(payload.company.strip())
+        
+        if payload.industry is not None:
+            updates.append("industry = ?")
+            params.append(payload.industry.strip())
+        
+        if payload.comments is not None:
+            updates.append("comments = ?")
+            params.append(payload.comments.strip())
+        
+        if not updates:
+            raise HTTPException(status_code=400, detail="No hay campos para actualizar")
+        
+        # Agregar user_id al final de params
+        params.append(payload.user_id)
+        
+        # Ejecutar UPDATE
+        sql = f"UPDATE users SET {', '.join(updates)} WHERE id = ?"
+        conn.execute(sql, params)
+        conn.commit()
+    
+    return {
+        "status": "success",
+        "message": "Perfil actualizado exitosamente."
+    }

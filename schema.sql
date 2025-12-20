@@ -8,6 +8,11 @@ CREATE TABLE IF NOT EXISTS users (
     email       TEXT NOT NULL UNIQUE,
     phone       TEXT,
     segment     TEXT DEFAULT 'nuevo',
+    profession  TEXT,
+    company     TEXT,
+    industry    TEXT,
+    comments    TEXT,
+    lead_source TEXT DEFAULT 'whatsapp_demo',
     created_at  TEXT DEFAULT (datetime('now'))
 );
 

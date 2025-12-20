@@ -117,16 +117,49 @@ def get_connection():
 
 
 def init_db():
-    if not DB_PATH.exists():
-        print(f"Creando base de datos en {DB_PATH}")
+    # Verificar si las tablas ya existen (no solo el archivo)
+    if DB_PATH.exists():
+        try:
+            with get_connection() as conn:
+                # Verificar si la tabla users existe
+                result = conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table' AND name='users'"
+                ).fetchone()
+                if result:
+                    print(f"Base de datos ya inicializada en {DB_PATH}")
+                    return
+        except Exception:
+            pass
+    
+    print(f"Inicializando base de datos en {DB_PATH}")
     with get_connection() as conn, open(SCHEMA_PATH, "r", encoding="utf-8") as f:
         conn.executescript(f.read())
         conn.commit()
+    
+    # Cargar datos de demo
+    try:
+        from seed_demo_data import seed_demo_data
+        seed_demo_data()
+    except Exception as e:
+        print(f"Warning: No se pudieron cargar datos de demo: {e}")
 
 
 @app.on_event("startup")
 def on_startup():
+    print("=" * 50)
+    print("STARTUP EVENT - Inicializando aplicación")
+    print(f"DB_PATH: {DB_PATH}")
+    print(f"DB existe: {DB_PATH.exists()}")
+    print("=" * 50)
     init_db()
+    print("Startup completado")
+
+# Forzar init inmediatamente (workaround para Cloud Run)
+print("\n" + "=" * 50)
+print("FORZANDO INIT_DB AL IMPORTAR MÓDULO")
+print("=" * 50)
+init_db()
+print("Init forzado completado\n")
 
 
 # -------------------------

@@ -1,0 +1,63 @@
+# Ignorar al hacer deploy a Cloud Run
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Entornos virtuales
+.venv/
+venv/
+env/
+
+# Configuración local
+.env
+.env.local
+.env.local.*
+.env.hybrid
+.env.*.local
+
+# VSCode / IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Base de datos LOCAL (NO deployar)
+*.db
+*.sqlite
+*.sqlite3
+retail.db
+retail.db-journal
+retail.db-shm
+retail.db-wal
+
+# Logs
+*.log
+
+# Scripts de testing local
+test-local.ps1
+test-hybrid.ps1
+
+# Archivos temporales
+*.tmp
+*.bak
+*.old
+
+# ADK sessions
+retail_agent/.adk/
+.adk/
+
+# Docs
+README.md
+docs/
+
+# Migrations (ya aplicadas en prod)
+migration_*.sql
